@@ -21,8 +21,23 @@ import com.google.atap.tangoservice.Tango;
 import com.google.atap.tangoservice.TangoAreaDescriptionMetaData;
 import com.google.atap.tangoservice.TangoPoseData;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.InputStreamEntity;
+import org.apache.http.entity.mime.HttpMultipartMode;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.util.EntityUtils;
+
 import org.json.JSONObject;
 import org.json.JSONException;
+
+import java.io.IOException;
+import java.io.File;
+import java.io.FileInputStream;
 
 public class HttpTangoUtil {
     private static final String TAG = HttpTangoUtil.class.getSimpleName();
@@ -226,22 +241,41 @@ public class HttpTangoUtil {
         String url = BASE_URL + UPLOAD;
         String uuid = mTango.saveAreaDescription();
         //String uuid = "d7412f96-cba7-4d76-963f-2cc9ed7289d8";
-        exportADF(uuid, "/sdcard/");// + uuid + ".adf");
-        TangoAreaDescriptionMetaData metadata = new TangoAreaDescriptionMetaData();
-        JsonObjectRequest request = new JsonObjectRequest
-            (Request.Method.POST, url, new Response.Listener<JSONObject>() {
-                @Override
-                public void onResponse(JSONObject response) {
-                    Log.d(TAG, response.toString());
-                }
-            }, new Response.ErrorListener() {
-                @Override
-                public void onErrorResponse(VolleyError error) {
-                    // handle error
-                }
-            });
-        // Access the RequestQueue through singleton class
-        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+        exportADF(uuid, "/sdcard/");
+        HttpClient httpClient = new DefaultHttpClient();
+        HttpPost httpPost = new HttpPost(url);
+        File file = new File("/sdcard/" + uuid);
+        FileBody fileBody = new FileBody(file);
+        MultipartEntity reqEntity = new MultipartEntity(HttpMultipartMode.BROWSER_COMPATIBLE);
+        reqEntity.addPart("file", fileBody);
+        httpPost.setEntity(reqEntity);
+        try {
+            HttpResponse response = httpClient.execute(httpPost);
+            HttpEntity resEntity = response.getEntity();
+
+            if (resEntity != null) {
+                String responseStr = EntityUtils.toString(resEntity).trim();
+                Log.v(TAG, "Response: " +  responseStr);
+            }
+        } catch (IOException e) {
+            // catch
+        }
+        // // File file = new File("/sdcard/" + uuid);
+        // try {
+        //     // HttpClient httpClient = new DefaultHttpClient();
+
+        //     // HttpClient httpclient = new DefaultHttpClient();
+        //     // HttpPost httppost = new HttpPost(url);
+        //     // InputStreamEntity reqEntity = new InputStreamEntity(
+        //     //         new FileInputStream(file), -1);
+        //     // reqEntity.setContentType("binary/octet-stream");
+        //     // reqEntity.setChunked(true); // Send in multiple parts if needed
+        //     // httppost.setEntity(reqEntity);
+        //     // HttpResponse response = httpclient.execute(httppost);
+
+        // } catch (Exception e) {
+        //     throw new RuntimeException(e);
+        // }
     }
 
     private void exportADF(String uuid, String destinationFile) {

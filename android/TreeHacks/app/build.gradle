@@ -39,6 +39,8 @@ repositories {
 }
 
 dependencies {
+    compile 'org.apache.httpcomponents:httpclient:4.5'
+    compile 'org.apache.httpcomponents:httpmime:4.5.1'
     compile "com.android.support:support-v4:18.0.+"
     compile "com.android.support:appcompat-v7:18.0.+"
     compile 'com.mcxiaoke.volley:library:1.0.19'
