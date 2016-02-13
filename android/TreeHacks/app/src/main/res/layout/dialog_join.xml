@@ -4,7 +4,7 @@
   android:layout_height="wrap_content">
 
   <EditText
-    android:id="@+id/session_create"
+    android:id="@+id/session_join"
     android:inputType="text"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -12,5 +12,5 @@
     android:layout_marginLeft="4dp"
     android:layout_marginRight="4dp"
     android:layout_marginBottom="4dp"
-    android:hint="@string/session_create" />
+    android:hint="@string/session_join" />
 </LinearLayout>

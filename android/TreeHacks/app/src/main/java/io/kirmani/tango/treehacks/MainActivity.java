@@ -17,6 +17,7 @@
 package io.kirmani.tango.treehacks;
 
 import android.app.Activity;
+import android.app.DialogFragment;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
@@ -78,7 +79,8 @@ import org.rajawali3d.scene.ASceneFrameCallback;
  * configuration parameter in order to achieve best results synchronizing the
  * Rajawali virtual world with the RGB camera.
  */
-public class MainActivity extends Activity implements View.OnTouchListener {
+public class MainActivity extends Activity implements View.OnTouchListener,
+       CreateSessionDialogFragment.CreateSessionDialogListener {
     private static final String TAG = MainActivity.class.getSimpleName();
     private TangoRajawaliView mGLView;
     private AugmentedRealityRenderer mRenderer;
@@ -118,7 +120,7 @@ public class MainActivity extends Activity implements View.OnTouchListener {
         int itemId = item.getItemId();
         switch (item.getItemId()) {
             case R.id.action_create:
-                // createSession();
+                showCreateSessionDialog();
                 return true;
             case R.id.action_join:
                 // joinSession();
@@ -126,6 +128,18 @@ public class MainActivity extends Activity implements View.OnTouchListener {
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    public void showCreateSessionDialog() {
+        // Create an instance of the dialog fragment and show it
+        DialogFragment dialog = new CreateSessionDialogFragment();
+        dialog.show(getFragmentManager(), "CreateSessionDialogFragment");
+    }
+
+    @Override
+    public void onCreateSessionDialogPositiveClick(DialogFragment dialog) {
+        // User touched the dialog's positive button
+        // ...
     }
 
     @Override

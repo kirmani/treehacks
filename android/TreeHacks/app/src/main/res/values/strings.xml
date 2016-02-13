@@ -7,6 +7,8 @@
   <string name="action_create">Create Session</string>
   <string name="action_join">Join Session</string>
   <string name="action_settings">Settings</string>
-  <string name="session_create">Name your session!</string>
+  <string name="session_create">What do you want to name your session?</string>
+  <string name="session_create_submit">Name it!</string>
   <string name="session_join">What session do you want to join?</string>
+  <string name="session_join_submit">Join it!</string>
 </resources>
