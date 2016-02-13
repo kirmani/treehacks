@@ -30,8 +30,8 @@ def log_request():
 def Home():
   return 'Hello world!'
 
-@app.route('/session/', defaults={'id': None}, methods=['GET','POST'])
-@app.route('/session/<id>/', methods=['GET','POST','PUT'])
+@app.route('/session', defaults={'id': None}, methods=['GET','POST'])
+@app.route('/session/<id>', methods=['GET','POST','PUT'])
 def session(id):
   if id is None:
     if request.method == 'GET':
@@ -43,8 +43,10 @@ def session(id):
     if 'sessions' not in serverdata:
       serverdata['sessions'] = {}
     serverdata['sessions'][jsondata['name']] = jsondata['data']
-    _WriteFile(serverdata, DATAFILE) 
+    _WriteFile(serverdata, DATAFILE)
+    return "{\"success\":true}" 
   else:
+    id = str(id)
     if request.method == 'GET':
       serverdata = _LoadFile(DATAFILE)
       if id in serverdata['sessions']:
@@ -52,7 +54,11 @@ def session(id):
     if request.method == 'PUT':
         jsondata = request.json
         serverdata = _LoadFile(DATAFILE)
+        if 'devices' not in serverdata['sessions'][id]:
+          serverdata['sessions'][id]['devices'] = {}
         for key in jsondata:
+          if key not in serverdata['sessions'][id]:
+            serverdata['sessions'][id][key] = {}
           serverdata['sessions'][id][key] = jsondata[key]
         _WriteFile(serverdata, DATAFILE)
     return 'Use existing session'
