@@ -38,7 +38,6 @@ public class JoinSessionDialogFragment extends DialogFragment {
                     new DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(DialogInterface dialog, int id) {
-                    // join the session ...
                 }
             });
         return builder.create();

@@ -22,8 +22,6 @@ import com.google.atap.tangoservice.TangoPoseData;
 import org.json.JSONObject;
 import org.json.JSONException;
 
-
-
 public class HttpTangoUtil {
     private static final String TAG = HttpTangoUtil.class.getSimpleName();
 
@@ -39,10 +37,9 @@ public class HttpTangoUtil {
     private static final String X = "x";
     private static final String Y = "y";
     private static final String Z = "z";
-    private static final String COLON = ":";
-    private static final String OPEN_BRACE = "{";
-    private static final String CLOSE_BRACE = "}";
-    private static final String COMMA = ",";
+    private static final String JOIN_WAITING = "join_waiting";
+    private static final String ADF_METADATA = "adf_metadata";
+    private static final String DEVICES = "devices";
 
     private static HttpTangoUtil mInstance;
     private Context mContext;
@@ -67,11 +64,15 @@ public class HttpTangoUtil {
     public void createSession(final String sessionId) {
         String url = BASE_URL + SESSION;
         try {
+            JSONObject devices = new JSONObject();
+            JSONObject adfMetadata = new JSONObject();
+            JSONObject requestData = new JSONObject();
+            requestData.put(DEVICES, devices);
+            requestData.put(ADF_METADATA, adfMetadata);
+            requestData.put(JOIN_WAITING, false);
             JSONObject requestBody = new JSONObject();
-            JSONObject data = new JSONObject();
-            data.put(host, true);
             requestBody.put(SESSION_NAME, sessionId);
-            requestBody.put(SESSION_DATA, data);
+            requestBody.put(SESSION_DATA, requestData);
             JsonObjectRequest request = new JsonObjectRequest
                 (Request.Method.POST, url, requestBody, new Response.Listener<JSONObject>() {
                     @Override
@@ -97,16 +98,20 @@ public class HttpTangoUtil {
         if (mSessionId == null)
             return;
         String url = BASE_URL + SESSION + "/" + mSessionId;
+        String uuid = Secure.getString(mContext.getContentResolver(),
+                                                        Secure.ANDROID_ID);
         double[] translation = pose.translation;
         double[] rotation = pose.rotation;
-        String uuid = "test";
         try {
+            JSONObject requestData = new JSONObject();
+            requestData.put(host, true);
             JSONObject position = new JSONObject();
             position.put(X, translation[0]);
             position.put(Y, translation[1]);
             position.put(Z, translation[2]);
+            requestData.put(POSITION, position);
             JSONObject requestBody = new JSONObject();
-            requestBody.put(uuid, position);
+            requestBody.put(uuid, requestBody);
             JsonObjectRequest request = new JsonObjectRequest
                 (Request.Method.PUT, url, requestBody, new Response.Listener<JSONObject>() {
                     @Override
