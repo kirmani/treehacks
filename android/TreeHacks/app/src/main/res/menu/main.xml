@@ -3,6 +3,12 @@
     tools:context="io.kirmani.tango.treehacks.MainActivity" >
 
     <item
+        android:id="@+id/connection_status"
+        android:orderInCategory="100"
+        android:showAsAction="always"
+        android:clickable="false"
+        android:title="@string/disconnected" />
+    <item
         android:id="@+id/action_create"
         android:orderInCategory="100"
         android:showAsAction="always"

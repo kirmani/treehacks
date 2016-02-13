@@ -41,6 +41,7 @@ repositories {
 dependencies {
     compile "com.android.support:support-v4:18.0.+"
     compile "com.android.support:appcompat-v7:18.0.+"
+    compile 'com.mcxiaoke.volley:library:1.0.19'
     compile 'org.rajawali3d:rajawali:1.0.294-SNAPSHOT@aar'
     compile (name: 'tango_support_java_lib', ext: 'aar')
     compile project(':TangoUtils')

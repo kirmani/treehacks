@@ -11,4 +11,9 @@
   <string name="session_create_submit">Name it!</string>
   <string name="session_join">What session do you want to join?</string>
   <string name="session_join_submit">Join it!</string>
+
+  <string name="disconnected">Disconnected</string>
+  <string name="connected_hosting">Connected, hosting</string>
+  <string name="connected_localizing">Connected, localizing...</string>
+  <string name="connected_localized">Connected, localized</string>
 </resources>
