@@ -13,9 +13,15 @@ import android.app.Dialog;
 import android.app.DialogFragment;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.EditText;
 
 public class CreateSessionDialogFragment extends DialogFragment {
+    private static final String TAG = CreateSessionDialogFragment.class
+        .getSimpleName();
+
 
     public interface CreateSessionDialogListener {
         public void onCreateSessionDialogPositiveClick(DialogFragment dialog);
@@ -32,13 +38,21 @@ public class CreateSessionDialogFragment extends DialogFragment {
 
         // Inflate and set the layout for the dialog
         // Pass null as the parent view because its going in the dialog layout
-        builder.setView(inflater.inflate(R.layout.dialog_create, null))
+        final View view = inflater.inflate(R.layout.dialog_create, null);
+        builder.setView(view)
             // Add action buttons
             .setPositiveButton(R.string.session_create_submit,
                     new DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(DialogInterface dialog, int id) {
-                    // create the session ...
+                    EditText editText = (EditText)
+                        view.findViewById(R.id.session_create);
+                    String sessionId = editText.getText().toString();
+                    Log.d(TAG, String.format(
+                                "Attempting to create session with ID: %s",
+                                sessionId));
+                    HttpTangoUtil.getInstance(getActivity().getApplicationContext())
+                        .createSession(sessionId);
                 }
             });
         return builder.create();
@@ -58,4 +72,3 @@ public class CreateSessionDialogFragment extends DialogFragment {
         }
     }
 }
-

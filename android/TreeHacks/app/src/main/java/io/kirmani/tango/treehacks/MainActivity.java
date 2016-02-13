@@ -188,6 +188,8 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         // IMU integration.
         TangoConfig config = mTango.getConfig(
                 TangoConfig.CONFIG_TYPE_DEFAULT);
+        config.putBoolean(TangoConfig.KEY_BOOLEAN_AUTORECOVERY, true);
+        config.putBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE, true);
         // NOTE: Low latency integration is necessary to achieve a
         // precise alignment of virtual objects with the RBG image and
         // produce a good AR effect.
@@ -200,9 +202,16 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         // using pose data. So just initialize.
         ArrayList<TangoCoordinateFramePair> framePairs =
                 new ArrayList<TangoCoordinateFramePair>();
+        framePairs.add(new TangoCoordinateFramePair(
+                    TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
+                    TangoPoseData.COORDINATE_FRAME_DEVICE));
         mTango.connectListener(framePairs, new OnTangoUpdateListener() {
             @Override
             public void onPoseAvailable(TangoPoseData pose) {
+                if (pose.statusCode == TangoPoseData.POSE_VALID) {
+                //    HttpTangoUtil.getInstance(getApplicationContext())
+                //            .updatePose(pose);
+                }
                 // We are not using OnPoseAvailable for this app.
             }
 
