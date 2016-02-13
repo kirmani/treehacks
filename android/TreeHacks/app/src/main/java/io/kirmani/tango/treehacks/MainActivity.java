@@ -83,6 +83,8 @@ public class MainActivity extends Activity implements View.OnTouchListener,
        CreateSessionDialogFragment.CreateSessionDialogListener,
        JoinSessionDialogFragment.JoinSessionDialogListener {
     private static final String TAG = MainActivity.class.getSimpleName();
+    private static final int STATE_UPDATE_LIMIT = 10;
+
     private TangoRajawaliView mGLView;
     private AugmentedRealityRenderer mRenderer;
     private TangoCameraIntrinsics mIntrinsics;
@@ -91,6 +93,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     private Tango mTango;
     private AtomicBoolean mIsConnected = new AtomicBoolean(false);
     private double mCameraPoseTimestamp = 0;
+    private int mStateUpdate = 0;
 
     public static final TangoCoordinateFramePair FRAME_PAIR = new TangoCoordinateFramePair(
             TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
@@ -208,9 +211,11 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         mTango.connectListener(framePairs, new OnTangoUpdateListener() {
             @Override
             public void onPoseAvailable(TangoPoseData pose) {
-                if (pose.statusCode == TangoPoseData.POSE_VALID) {
-                //    HttpTangoUtil.getInstance(getApplicationContext())
-                //            .updatePose(pose);
+                mStateUpdate = (mStateUpdate + 1) % STATE_UPDATE_LIMIT;
+                if (mStateUpdate % STATE_UPDATE_LIMIT == 0
+                        && pose.statusCode == TangoPoseData.POSE_VALID) {
+                    HttpTangoUtil.getInstance(getApplicationContext())
+                            .updatePose(pose);
                 }
                 // We are not using OnPoseAvailable for this app.
             }
