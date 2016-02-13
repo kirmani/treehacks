@@ -107,8 +107,13 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         mGLView.setSurfaceRenderer(mRenderer);
         mGLView.setOnTouchListener(this);
         mTango = new Tango(this);
+        HttpTangoUtil.getInstance(getApplicationContext()).attachTango(mTango);
+        HttpTangoUtil.getInstance(getApplicationContext()).attachActivity(this);
         mPointCloudManager = new TangoPointCloudManager();
         setContentView(mGLView);
+        startActivityForResult(
+                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
+                Tango.TANGO_INTENT_ACTIVITYCODE);
     }
 
     @Override
@@ -189,17 +194,17 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     private void connectTango() {
         // Use default configuration for Tango Service, plus low latency
         // IMU integration.
-        TangoConfig config = mTango.getConfig(
-                TangoConfig.CONFIG_TYPE_DEFAULT);
-        config.putBoolean(TangoConfig.KEY_BOOLEAN_AUTORECOVERY, true);
-        config.putBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE, true);
         // NOTE: Low latency integration is necessary to achieve a
         // precise alignment of virtual objects with the RBG image and
         // produce a good AR effect.
-        config.putBoolean(
-                TangoConfig.KEY_BOOLEAN_LOWLATENCYIMUINTEGRATION, true);
+        TangoConfig config = new TangoConfig();
+        config = mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT);
+        config.putBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE, true);
+        config.putBoolean(TangoConfig.KEY_BOOLEAN_LOWLATENCYIMUINTEGRATION, true);
         config.putBoolean(TangoConfig.KEY_BOOLEAN_DEPTH, true);
+        config.putBoolean(TangoConfig.KEY_BOOLEAN_AUTORECOVERY, true);
         mTango.connect(config);
+        Log.d(TAG, config.toString());
 
         // No need to add any coordinate frame pairs since we are not
         // using pose data. So just initialize.

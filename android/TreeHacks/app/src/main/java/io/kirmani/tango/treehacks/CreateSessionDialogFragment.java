@@ -22,7 +22,6 @@ public class CreateSessionDialogFragment extends DialogFragment {
     private static final String TAG = CreateSessionDialogFragment.class
         .getSimpleName();
 
-
     public interface CreateSessionDialogListener {
         public void onCreateSessionDialogPositiveClick(DialogFragment dialog);
     }
