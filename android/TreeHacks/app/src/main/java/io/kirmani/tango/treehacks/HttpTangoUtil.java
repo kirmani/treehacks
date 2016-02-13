@@ -33,7 +33,7 @@ public class HttpTangoUtil {
     private static final String SESSION_NAME = "name";
     private static final String SESSION_DATA = "data";
     private static final String POSITION = "position";
-    private static final String host = "host";
+    private static final String HOST = "host";
     private static final String X = "x";
     private static final String Y = "y";
     private static final String Z = "z";
@@ -103,15 +103,17 @@ public class HttpTangoUtil {
         double[] translation = pose.translation;
         double[] rotation = pose.rotation;
         try {
-            JSONObject requestData = new JSONObject();
-            requestData.put(host, true);
             JSONObject position = new JSONObject();
             position.put(X, translation[0]);
             position.put(Y, translation[1]);
             position.put(Z, translation[2]);
-            requestData.put(POSITION, position);
+            JSONObject device = new JSONObject();
+            device.put(POSITION, position);
+            device.put(HOST, true);
+            JSONObject deviceUuid = new JSONObject();
+            deviceUuid.put(uuid, device);
             JSONObject requestBody = new JSONObject();
-            requestBody.put(uuid, requestBody);
+            requestBody.put(DEVICES, deviceUuid);
             JsonObjectRequest request = new JsonObjectRequest
                 (Request.Method.PUT, url, requestBody, new Response.Listener<JSONObject>() {
                     @Override
