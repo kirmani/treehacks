@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.projecttango.experiments.augmentedrealitysample;
+package io.kirmani.tango.treehacks;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -75,8 +75,8 @@ import org.rajawali3d.scene.ASceneFrameCallback;
  * configuration parameter in order to achieve best results synchronizing the
  * Rajawali virtual world with the RGB camera.
  */
-public class AugmentedRealityActivity extends Activity implements View.OnTouchListener {
-    private static final String TAG = AugmentedRealityActivity.class.getSimpleName();
+public class MainActivity extends Activity implements View.OnTouchListener {
+    private static final String TAG = MainActivity.class.getSimpleName();
     private TangoRajawaliView mGLView;
     private AugmentedRealityRenderer mRenderer;
     private TangoCameraIntrinsics mIntrinsics;
