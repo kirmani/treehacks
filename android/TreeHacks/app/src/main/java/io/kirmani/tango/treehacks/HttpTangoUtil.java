@@ -35,6 +35,7 @@ public class HttpTangoUtil {
     private static final String SESSION_NAME = "name";
     private static final String SESSION_DATA = "data";
     private static final String POSITION = "position";
+    private static final String host = "host";
     private static final String X = "x";
     private static final String Y = "y";
     private static final String Z = "z";
@@ -67,9 +68,10 @@ public class HttpTangoUtil {
         String url = BASE_URL + SESSION;
         try {
             JSONObject requestBody = new JSONObject();
-            JSONObject sessionData = new JSONObject();
+            JSONObject data = new JSONObject();
+            data.put(host, true);
             requestBody.put(SESSION_NAME, sessionId);
-            requestBody.put(SESSION_DATA, sessionData);
+            requestBody.put(SESSION_DATA, data);
             JsonObjectRequest request = new JsonObjectRequest
                 (Request.Method.POST, url, requestBody, new Response.Listener<JSONObject>() {
                     @Override

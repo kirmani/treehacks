@@ -209,8 +209,8 @@ public class MainActivity extends Activity implements View.OnTouchListener,
             @Override
             public void onPoseAvailable(TangoPoseData pose) {
                 if (pose.statusCode == TangoPoseData.POSE_VALID) {
-                //    HttpTangoUtil.getInstance(getApplicationContext())
-                //            .updatePose(pose);
+                    HttpTangoUtil.getInstance(getApplicationContext())
+                            .updatePose(pose);
                 }
                 // We are not using OnPoseAvailable for this app.
             }
