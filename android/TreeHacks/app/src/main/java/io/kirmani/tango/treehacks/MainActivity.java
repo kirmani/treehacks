@@ -80,7 +80,8 @@ import org.rajawali3d.scene.ASceneFrameCallback;
  * Rajawali virtual world with the RGB camera.
  */
 public class MainActivity extends Activity implements View.OnTouchListener,
-       CreateSessionDialogFragment.CreateSessionDialogListener {
+       CreateSessionDialogFragment.CreateSessionDialogListener,
+       JoinSessionDialogFragment.JoinSessionDialogListener {
     private static final String TAG = MainActivity.class.getSimpleName();
     private TangoRajawaliView mGLView;
     private AugmentedRealityRenderer mRenderer;
@@ -123,7 +124,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                 showCreateSessionDialog();
                 return true;
             case R.id.action_join:
-                // joinSession();
+                showJoinSessionDialog();
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -136,8 +137,20 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         dialog.show(getFragmentManager(), "CreateSessionDialogFragment");
     }
 
+    public void showJoinSessionDialog() {
+        // Create an instance of the dialog fragment and show it
+        DialogFragment dialog = new JoinSessionDialogFragment();
+        dialog.show(getFragmentManager(), "JoinSessionDialogFragment");
+    }
+
     @Override
     public void onCreateSessionDialogPositiveClick(DialogFragment dialog) {
+        // User touched the dialog's positive button
+        // ...
+    }
+
+    @Override
+    public void onJoinSessionDialogPositiveClick(DialogFragment dialog) {
         // User touched the dialog's positive button
         // ...
     }
