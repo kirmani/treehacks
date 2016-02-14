@@ -11,6 +11,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.provider.Settings.Secure;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.android.volley.Response;
 import com.android.volley.Request;
@@ -28,6 +29,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.mime.HttpMultipartMode;
 import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.util.EntityUtils;
@@ -38,6 +40,14 @@ import org.json.JSONException;
 import java.io.IOException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.MalformedURLException;
+
+import net.gotev.uploadservice.MultipartUploadRequest;
 
 public class HttpTangoUtil {
     private static final String TAG = HttpTangoUtil.class.getSimpleName();
@@ -237,45 +247,34 @@ public class HttpTangoUtil {
         }
     }
 
-    private void saveADF() {
-        String url = BASE_URL + UPLOAD;
-        String uuid = mTango.saveAreaDescription();
-        //String uuid = "d7412f96-cba7-4d76-963f-2cc9ed7289d8";
-        exportADF(uuid, "/sdcard/");
-        HttpClient httpClient = new DefaultHttpClient();
-        HttpPost httpPost = new HttpPost(url);
-        File file = new File("/sdcard/" + uuid);
-        FileBody fileBody = new FileBody(file);
-        MultipartEntity reqEntity = new MultipartEntity(HttpMultipartMode.BROWSER_COMPATIBLE);
-        reqEntity.addPart("file", fileBody);
-        httpPost.setEntity(reqEntity);
-        try {
-            HttpResponse response = httpClient.execute(httpPost);
-            HttpEntity resEntity = response.getEntity();
+    public void saveADF() {
+        Thread t = new Thread() {
+            @Override
+            public void run() {
+                super.run();
+                String url = BASE_URL + UPLOAD;
+                String uuid = mTango.saveAreaDescription();
+                exportADF(uuid, "/sdcard/");
 
-            if (resEntity != null) {
-                String responseStr = EntityUtils.toString(resEntity).trim();
-                Log.v(TAG, "Response: " +  responseStr);
+                try {
+                    Thread.sleep(2000);
+                    MultipartUploadRequest req = new MultipartUploadRequest(mContext, url)
+                        .addFileToUpload("/sdcard/" + uuid, "adf")
+                        .addParameter("session", mSessionId);
+
+                    req.startUpload();
+                } catch (FileNotFoundException e) {
+                    showToast(e.getMessage());
+                } catch (IllegalArgumentException e) {
+                    showToast("Missing some arguments. " + e.getMessage());
+                } catch (MalformedURLException e) {
+                    showToast(e.getMessage());
+                } catch (InterruptedException e) {
+                    showToast(e.getMessage());
+                }
             }
-        } catch (IOException e) {
-            // catch
-        }
-        // // File file = new File("/sdcard/" + uuid);
-        // try {
-        //     // HttpClient httpClient = new DefaultHttpClient();
-
-        //     // HttpClient httpclient = new DefaultHttpClient();
-        //     // HttpPost httppost = new HttpPost(url);
-        //     // InputStreamEntity reqEntity = new InputStreamEntity(
-        //     //         new FileInputStream(file), -1);
-        //     // reqEntity.setContentType("binary/octet-stream");
-        //     // reqEntity.setChunked(true); // Send in multiple parts if needed
-        //     // httppost.setEntity(reqEntity);
-        //     // HttpResponse response = httpclient.execute(httppost);
-
-        // } catch (Exception e) {
-        //     throw new RuntimeException(e);
-        // }
+        };
+        t.start();
     }
 
     private void exportADF(String uuid, String destinationFile) {
@@ -286,5 +285,10 @@ public class HttpTangoUtil {
     private String getDeviceUuid() {
         return Secure.getString(mContext.getContentResolver(), Secure.ANDROID_ID);
     }
+
+    private void showToast(String message) {
+        Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
+    }
+
 }
 
