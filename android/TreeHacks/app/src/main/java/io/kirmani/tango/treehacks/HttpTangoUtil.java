@@ -234,16 +234,13 @@ public class HttpTangoUtil {
                     position.put(Y, translation[1]);
                     position.put(Z, translation[2]);
                     device.put(POSITION, position);
-                } else if (!mIsHost && mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT)
-                        .getBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE)
+                } else if (!mIsHost
                         && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                         && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
                     if (pose.statusCode == TangoPoseData.POSE_VALID) {
                         mIsLocalized = true;
-                        showToast("Connected, localized! :)");
                     } else {
                         mIsLocalized = false;
-                        showToast("Lost localization. :(");
                     }
                     device.put(LOCALIZED, mIsLocalized);
                 }
@@ -273,6 +270,10 @@ public class HttpTangoUtil {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    public boolean isLocalized() {
+        return mIsLocalized;
     }
 
     private void checkForUpdates() {
@@ -387,7 +388,7 @@ public class HttpTangoUtil {
         return Secure.getString(mContext.getContentResolver(), Secure.ANDROID_ID);
     }
 
-    private void showToast(String message) {
+    public void showToast(String message) {
         Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
     }
 

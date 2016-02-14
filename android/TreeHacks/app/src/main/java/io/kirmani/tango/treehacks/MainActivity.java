@@ -96,6 +96,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     private int mStateUpdate = 0;
     private boolean mIsRunning = false;
     private boolean mLearning = true;
+    private boolean mIsLocalizedPrev = false;
 
     public static final TangoCoordinateFramePair FRAME_PAIR = new TangoCoordinateFramePair(
             TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
