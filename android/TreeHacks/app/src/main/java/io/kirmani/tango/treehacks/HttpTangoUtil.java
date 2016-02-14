@@ -244,6 +244,7 @@ public class HttpTangoUtil {
                     }
                     device.put(LOCALIZED, mIsLocalized);
                 }
+                device.put(HOST, mIsHost);
                 JSONObject devices = new JSONObject();
                 devices.put(getDeviceUuid(), device);
                 JSONObject requestBody = new JSONObject();
