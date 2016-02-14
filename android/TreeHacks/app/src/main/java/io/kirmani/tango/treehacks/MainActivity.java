@@ -211,8 +211,14 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         ArrayList<TangoCoordinateFramePair> framePairs =
                 new ArrayList<TangoCoordinateFramePair>();
         framePairs.add(new TangoCoordinateFramePair(
-                    TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
-                    TangoPoseData.COORDINATE_FRAME_DEVICE));
+                TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
+                TangoPoseData.COORDINATE_FRAME_DEVICE));
+        framePairs.add(new TangoCoordinateFramePair(
+                TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION,
+                TangoPoseData.COORDINATE_FRAME_DEVICE));
+        framePairs.add(new TangoCoordinateFramePair(
+                TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION,
+                TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE));
         mTango.connectListener(framePairs, new OnTangoUpdateListener() {
             @Override
             public void onPoseAvailable(TangoPoseData pose) {
@@ -222,7 +228,6 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                     HttpTangoUtil.getInstance(getApplicationContext())
                             .updatePose(pose);
                 }
-                // We are not using OnPoseAvailable for this app.
             }
 
             @Override

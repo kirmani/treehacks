@@ -20,6 +20,7 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 
 import com.google.atap.tangoservice.Tango;
+import com.google.atap.tangoservice.TangoConfig;
 import com.google.atap.tangoservice.TangoAreaDescriptionMetaData;
 import com.google.atap.tangoservice.TangoPoseData;
 
@@ -38,15 +39,19 @@ import org.apache.http.util.EntityUtils;
 import org.json.JSONObject;
 import org.json.JSONException;
 
+import java.io.BufferedInputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.MalformedURLException;
+import java.net.URLConnection;
 
 import net.gotev.uploadservice.MultipartUploadRequest;
 
@@ -82,6 +87,8 @@ public class HttpTangoUtil {
     private String mSessionId;
     private boolean mIsHost;
     private boolean dummy = true;
+
+    private final Object mSharedLock = new Object();
 
     private HttpTangoUtil(Context context) {
         mContext = context;
@@ -190,6 +197,20 @@ public class HttpTangoUtil {
             position.put(Y, translation[1]);
             position.put(Z, translation[2]);
             JSONObject device = new JSONObject();
+            synchronized (mSharedLock) {
+                if (!mIsHost &&
+                        mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT)
+                        .getBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE)) {
+                    if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
+                        && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
+                        if (pose.statusCode == TangoPoseData.POSE_VALID) {
+                            device.put(LOCALIZED, true);
+                        } else {
+                            device.put(LOCALIZED, false);
+                        }
+                    }
+                }
+            }
             device.put(POSITION, position);
             JSONObject devices = new JSONObject();
             devices.put(getDeviceUuid(), device);
@@ -237,16 +258,13 @@ public class HttpTangoUtil {
 
     private void handleUpdates(JSONObject response) {
         try {
-            if (response.getBoolean(JOIN_WAITING)) {
-                if (mIsHost && dummy) {
-                    // save and upload ADF
-                    saveADF();
-                    dummy = false;
-                } else if (!mIsHost) {
-                    if (response.has(ADF)) {
-                        downloadADF(response);
-                    }
-                }
+            if (mIsHost && response.getBoolean(JOIN_WAITING) && dummy) {
+                // save and upload ADF
+                saveADF();
+                dummy = false;
+            } else if (!mIsHost && response.has(ADF) && dummy) {
+                downloadADF(response);
+                dummy = false;
             }
         } catch (JSONException e) {
             throw new RuntimeException(e);
@@ -283,6 +301,43 @@ public class HttpTangoUtil {
     }
 
     public void downloadADF(JSONObject response) {
+        if (response.has(ADF)) {
+            try {
+                URL url = new URL(BASE_URL + response.getString(ADF));
+                URLConnection connection = url.openConnection();
+                connection.connect();
+                int fileLength = connection.getContentLength();
+
+                // download the file
+                String outputFile = "/sdcard/" + response.getString(ADF);
+                InputStream input = new BufferedInputStream(url.openStream());
+                OutputStream output = new FileOutputStream(outputFile);
+
+                byte data[] = new byte[1024];
+                long total = 0;
+                int count;
+                while ((count = input.read(data)) != -1) {
+                    total += count;
+                    output.write(data, 0, count);
+                }
+
+                output.flush();
+                output.close();
+                input.close();
+
+
+                // import ADF
+                mTango.disconnect();
+                TangoConfig config = mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT);
+                config.putBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE, false);
+                mTango.connect(config);
+                mTango.experimentalLoadAreaDescriptionFromFile(outputFile);
+            } catch (IOException e) {
+                Log.e(TAG, e.getMessage());
+            } catch (JSONException e) {
+                Log.e(TAG, e.getMessage());
+            }
+        }
     }
 
     private void exportADF(String uuid, String destinationFile) {
@@ -295,7 +350,7 @@ public class HttpTangoUtil {
     }
 
     private void showToast(String message) {
-        Toast.makeText(mActivity.getApplicationContext(), message, Toast.LENGTH_LONG).show();
+        Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
     }
 
 }
