@@ -11,6 +11,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.provider.Settings.Secure;
 import android.util.Log;
+import android.view.Menu;
 import android.widget.Toast;
 
 import com.android.volley.Response;
@@ -70,7 +71,7 @@ public class HttpTangoUtil {
     private static final String Y = "y";
     private static final String Z = "z";
     private static final String JOIN_WAITING = "join_waiting";
-    private static final String ADF_METADATA = "adf_metadata";
+    private static final String ADF = "adf";
     private static final String DEVICES = "devices";
     private static final String LOCALIZED = "localized";
 
@@ -113,7 +114,7 @@ public class HttpTangoUtil {
             JSONObject adfMetadata = new JSONObject();
             JSONObject requestData = new JSONObject();
             requestData.put(DEVICES, devices);
-            requestData.put(ADF_METADATA, adfMetadata);
+            requestData.put(ADF, adfMetadata);
             requestData.put(JOIN_WAITING, false);
             JSONObject requestBody = new JSONObject();
             requestBody.put(SESSION_NAME, sessionId);
@@ -160,6 +161,7 @@ public class HttpTangoUtil {
                     public void onResponse(JSONObject response) {
                         Log.d(TAG, response.toString());
                         mSessionId = sessionId;
+                        showToast("Connected, hosting");
                     }
                 }, new Response.ErrorListener() {
                     @Override
@@ -240,6 +242,10 @@ public class HttpTangoUtil {
                     // save and upload ADF
                     saveADF();
                     dummy = false;
+                } else if (!mIsHost) {
+                    if (response.has(ADF)) {
+                        downloadADF(response);
+                    }
                 }
             }
         } catch (JSONException e) {
@@ -261,7 +267,6 @@ public class HttpTangoUtil {
                     MultipartUploadRequest req = new MultipartUploadRequest(mContext, url)
                         .addFileToUpload("/sdcard/" + uuid, "adf")
                         .addParameter("session", mSessionId);
-
                     req.startUpload();
                 } catch (FileNotFoundException e) {
                     showToast(e.getMessage());
@@ -277,6 +282,9 @@ public class HttpTangoUtil {
         t.start();
     }
 
+    public void downloadADF(JSONObject response) {
+    }
+
     private void exportADF(String uuid, String destinationFile) {
         Log.d(TAG, destinationFile);
         mTango.exportAreaDescriptionFile(uuid, destinationFile);
@@ -287,7 +295,7 @@ public class HttpTangoUtil {
     }
 
     private void showToast(String message) {
-        Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
+        Toast.makeText(mActivity.getApplicationContext(), message, Toast.LENGTH_LONG).show();
     }
 
 }
