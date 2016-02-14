@@ -94,6 +94,8 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     private AtomicBoolean mIsConnected = new AtomicBoolean(false);
     private double mCameraPoseTimestamp = 0;
     private int mStateUpdate = 0;
+    private boolean mIsRunning = false;
+    private boolean mLearning = true;
 
     public static final TangoCoordinateFramePair FRAME_PAIR = new TangoCoordinateFramePair(
             TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
@@ -111,9 +113,6 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         HttpTangoUtil.getInstance(getApplicationContext()).attachActivity(this);
         mPointCloudManager = new TangoPointCloudManager();
         setContentView(mGLView);
-        startActivityForResult(
-                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
-                Tango.TANGO_INTENT_ACTIVITYCODE);
     }
 
     @Override
@@ -166,16 +165,29 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     @Override
     protected void onPause() {
         super.onPause();
-        if (mIsConnected.compareAndSet(true, false)) {
-            mRenderer.getCurrentScene().clearFrameCallbacks();
-            mGLView.disconnectCamera();
-            mTango.disconnect();
+        if (mIsRunning) {
+            if (mIsConnected.compareAndSet(true, false)) {
+                mRenderer.getCurrentScene().clearFrameCallbacks();
+                mGLView.disconnectCamera();
+                mTango.disconnect();
+            }
+            mIsRunning = false;
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        if (HttpTangoUtil.getInstance(getApplicationContext()).isReadyToResume()) {
+            resume();
+        }
+    }
+
+    public void disableLearning() {
+        mLearning = false;
+    }
+
+    public void resume() {
         if (mIsConnected.compareAndSet(false, true)) {
             try {
                 connectTango();
@@ -186,6 +198,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                         Toast.LENGTH_SHORT).show();
             }
         }
+        mIsRunning = true;
     }
 
     /**
@@ -197,9 +210,8 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         // NOTE: Low latency integration is necessary to achieve a
         // precise alignment of virtual objects with the RBG image and
         // produce a good AR effect.
-        TangoConfig config = new TangoConfig();
-        config = mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT);
-        config.putBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE, true);
+        TangoConfig config = mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT);
+        config.putBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE, mLearning);
         config.putBoolean(TangoConfig.KEY_BOOLEAN_LOWLATENCYIMUINTEGRATION, true);
         config.putBoolean(TangoConfig.KEY_BOOLEAN_DEPTH, true);
         config.putBoolean(TangoConfig.KEY_BOOLEAN_AUTORECOVERY, true);

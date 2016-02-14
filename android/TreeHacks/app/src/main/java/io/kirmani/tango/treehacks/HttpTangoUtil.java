@@ -82,11 +82,14 @@ public class HttpTangoUtil {
 
     private static HttpTangoUtil mInstance;
     private Context mContext;
-    private Activity mActivity;
+    private MainActivity mActivity;
     private Tango mTango;
+    private AugmentedRealityRenderer mRenderer;
     private String mSessionId;
     private boolean mIsHost;
+    private boolean mIsLocalized;
     private boolean dummy = true;
+    private boolean mReadyToResume = false;
 
     private final Object mSharedLock = new Object();
 
@@ -105,17 +108,31 @@ public class HttpTangoUtil {
         mTango = tango;
     }
 
-    public void attachActivity(Activity activity) {
+    public void attachActivity(MainActivity activity) {
         mActivity = activity;
+    }
+
+    public void attachRenderer(AugmentedRealityRenderer renderer) {
+        mRenderer = renderer;
+    }
+
+    public boolean isReadyToResume() {
+        return mReadyToResume;
     }
 
     public void createSession(final String sessionId) {
         String url = BASE_URL + SESSION;
         try {
+            mActivity.resume();
+            mReadyToResume = true;
+            mActivity.startActivityForResult(
+                    Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
+                    Tango.TANGO_INTENT_ACTIVITYCODE);
             JSONObject device = new JSONObject();
-            device.put(LOCALIZED, true);
             mIsHost = true;
+            mIsLocalized = true;
             device.put(HOST, mIsHost);
+            device.put(LOCALIZED, mIsLocalized);
             JSONObject devices = new JSONObject();
             devices.put(getDeviceUuid(), device);
             JSONObject adfMetadata = new JSONObject();
@@ -132,6 +149,7 @@ public class HttpTangoUtil {
                     public void onResponse(JSONObject response) {
                         Log.d(TAG, response.toString());
                         mSessionId = sessionId;
+                        showToast("Connected, hosting! :)");
                     }
                 }, new Response.ErrorListener() {
                     @Override
@@ -148,12 +166,19 @@ public class HttpTangoUtil {
     }
 
     public void joinSession(final String sessionId) {
+        mActivity.disableLearning();
+        mActivity.resume();
+        mReadyToResume = true;
+        mActivity.startActivityForResult(
+                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
+                Tango.TANGO_INTENT_ACTIVITYCODE);
         String url = BASE_URL + SESSION;
         try {
             JSONObject device = new JSONObject();
-            device.put(LOCALIZED, false);
             mIsHost = false;
+            mIsLocalized = false;
             device.put(HOST, mIsHost);
+            device.put(LOCALIZED, mIsLocalized);
             JSONObject devices = new JSONObject();
             devices.put(getDeviceUuid(), device);
             JSONObject requestData = new JSONObject();
@@ -168,7 +193,6 @@ public class HttpTangoUtil {
                     public void onResponse(JSONObject response) {
                         Log.d(TAG, response.toString());
                         mSessionId = sessionId;
-                        showToast("Connected, hosting");
                     }
                 }, new Response.ErrorListener() {
                     @Override
@@ -190,52 +214,64 @@ public class HttpTangoUtil {
         String url = BASE_URL + SESSION + "/" + mSessionId;
         double[] translation = pose.translation;
         double[] rotation = pose.rotation;
-        try {
-            // send updates
-            JSONObject position = new JSONObject();
-            position.put(X, translation[0]);
-            position.put(Y, translation[1]);
-            position.put(Z, translation[2]);
-            JSONObject device = new JSONObject();
-            synchronized (mSharedLock) {
-                if (!mIsHost &&
-                        mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT)
-                        .getBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE)) {
-                    if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
+        synchronized (mSharedLock) {
+            try {
+                JSONObject device = new JSONObject();
+                // send updates
+                if (!mIsHost && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
+                    && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
+                    if (mIsLocalized) {
+                        JSONObject position = new JSONObject();
+                        position.put(X, translation[0]);
+                        position.put(Y, translation[1]);
+                        position.put(Z, translation[2]);
+                        device.put(POSITION, position);
+                    }
+                } else if (mIsHost && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE
+                        && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
+                    JSONObject position = new JSONObject();
+                    position.put(X, translation[0]);
+                    position.put(Y, translation[1]);
+                    position.put(Z, translation[2]);
+                    device.put(POSITION, position);
+                } else if (!mIsHost && mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT)
+                        .getBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE)
+                        && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                         && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
-                        if (pose.statusCode == TangoPoseData.POSE_VALID) {
-                            device.put(LOCALIZED, true);
-                        } else {
-                            device.put(LOCALIZED, false);
-                        }
+                    if (pose.statusCode == TangoPoseData.POSE_VALID) {
+                        mIsLocalized = true;
+                        showToast("Connected, localized! :)");
+                    } else {
+                        mIsLocalized = false;
+                        showToast("Lost localization. :(");
                     }
+                    device.put(LOCALIZED, mIsLocalized);
                 }
+                JSONObject devices = new JSONObject();
+                devices.put(getDeviceUuid(), device);
+                JSONObject requestBody = new JSONObject();
+                requestBody.put(DEVICES, devices);
+                JsonObjectRequest request = new JsonObjectRequest
+                    (Request.Method.PUT, url, requestBody, new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            Log.d(TAG, response.toString());
+                        }
+                    }, new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            // handle error
+                        }
+                    });
+                // Access the RequestQueue through singleton class
+                HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+
+                // check for updates
+                checkForUpdates();
+
+            } catch (JSONException e) {
+                throw new RuntimeException(e);
             }
-            device.put(POSITION, position);
-            JSONObject devices = new JSONObject();
-            devices.put(getDeviceUuid(), device);
-            JSONObject requestBody = new JSONObject();
-            requestBody.put(DEVICES, devices);
-            JsonObjectRequest request = new JsonObjectRequest
-                (Request.Method.PUT, url, requestBody, new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        Log.d(TAG, response.toString());
-                    }
-                }, new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        // handle error
-                    }
-                });
-            // Access the RequestQueue through singleton class
-            HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
-
-            // check for updates
-            checkForUpdates();
-
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -281,7 +317,7 @@ public class HttpTangoUtil {
                 exportADF(uuid, "/sdcard/");
 
                 try {
-                    Thread.sleep(2000);
+                    Thread.sleep(5000);
                     MultipartUploadRequest req = new MultipartUploadRequest(mContext, url)
                         .addFileToUpload("/sdcard/" + uuid, "adf")
                         .addParameter("session", mSessionId);
@@ -300,43 +336,45 @@ public class HttpTangoUtil {
         t.start();
     }
 
-    public void downloadADF(JSONObject response) {
+    public void downloadADF(final JSONObject response) {
         if (response.has(ADF)) {
-            try {
-                URL url = new URL(BASE_URL + response.getString(ADF));
-                URLConnection connection = url.openConnection();
-                connection.connect();
-                int fileLength = connection.getContentLength();
+            Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        URL url = new URL(BASE_URL + response.getString(ADF));
+                        URLConnection connection = url.openConnection();
+                        connection.connect();
+                        int fileLength = connection.getContentLength();
 
-                // download the file
-                String outputFile = "/sdcard/" + response.getString(ADF);
-                InputStream input = new BufferedInputStream(url.openStream());
-                OutputStream output = new FileOutputStream(outputFile);
+                        // download the file
+                        String outputFile = "/sdcard/" + response.getString(ADF);
+                        InputStream input = new BufferedInputStream(url.openStream());
+                        OutputStream output = new FileOutputStream(outputFile);
 
-                byte data[] = new byte[1024];
-                long total = 0;
-                int count;
-                while ((count = input.read(data)) != -1) {
-                    total += count;
-                    output.write(data, 0, count);
+                        byte data[] = new byte[1024];
+                        long total = 0;
+                        int count;
+                        while ((count = input.read(data)) != -1) {
+                            total += count;
+                            output.write(data, 0, count);
+                        }
+
+                        output.flush();
+                        output.close();
+                        input.close();
+
+                        // import ADF
+                        mTango.experimentalLoadAreaDescriptionFromFile(outputFile);
+                    } catch (IOException e) {
+                        Log.e(TAG, e.getMessage());
+                    } catch (JSONException e) {
+                        Log.e(TAG, e.getMessage());
+                    }
                 }
-
-                output.flush();
-                output.close();
-                input.close();
-
-
-                // import ADF
-                mTango.disconnect();
-                TangoConfig config = mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT);
-                config.putBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE, false);
-                mTango.connect(config);
-                mTango.experimentalLoadAreaDescriptionFromFile(outputFile);
-            } catch (IOException e) {
-                Log.e(TAG, e.getMessage());
-            } catch (JSONException e) {
-                Log.e(TAG, e.getMessage());
-            }
+            };
+            showToast("Connected, Downloading ADF and localizing...");
+            t.start();
         }
     }
 
