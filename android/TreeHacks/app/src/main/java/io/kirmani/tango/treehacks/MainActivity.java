@@ -381,6 +381,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         return true;
     }
 
+
     /**
      * Use the TangoSupport library with point cloud data to calculate the plane
      * of the world feature pointed at the location the camera is looking.

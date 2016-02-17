@@ -9,6 +9,7 @@ package io.kirmani.tango.treehacks;
 
 import android.app.Activity;
 import android.content.Context;
+import android.os.Handler;
 import android.provider.Settings.Secure;
 import android.util.Log;
 import android.view.Menu;
@@ -346,6 +347,7 @@ public class HttpTangoUtil {
                     try {
                         URL url = new URL(BASE_URL + response.getString(ADF));
                         URLConnection connection = url.openConnection();
+                        showToast("Connected, downloading ADF...");
                         connection.connect();
                         int fileLength = connection.getContentLength();
 
@@ -375,7 +377,7 @@ public class HttpTangoUtil {
                     }
                 }
             };
-            showToast("Connected, Downloading ADF and localizing...");
+            // showToast("Connected, downloading ADF and localizing...");
             t.start();
         }
     }
@@ -389,9 +391,14 @@ public class HttpTangoUtil {
         return Secure.getString(mContext.getContentResolver(), Secure.ANDROID_ID);
     }
 
-    public void showToast(String message) {
-        Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
+    private void showToast(final String message) {
+        Handler h = new Handler(mContext.getMainLooper());
+        h.post(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
+            }
+        });
     }
-
 }
 
