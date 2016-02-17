@@ -15,7 +15,7 @@ from flask import current_app
 from flask import url_for
 from flask import make_response
 
-DATAFILE = '/var/www/kirmani.io/treehacks/public_html/data.json'
+DATAFILE = '/var/www/kirmani.io/treehacks/public_html/data/data.json'
 
 app = Flask(__name__, static_url_path='')
 app.secret_key = 'multi_tango_kirmani_io'
@@ -44,7 +44,7 @@ def file_upload():
     file = request.files['adf']
     session = request.values['session']
     print session
-    file.save('/var/www/kirmani.io/treehacks/public_html/'+session+'.adf')
+    file.save('/var/www/kirmani.io/treehacks/public_html/data/adfs/'+session+'.adf')
     serverdata = _LoadFile(DATAFILE)
     serverdata['sessions'][session]['adf'] = '/download/'+session+'.adf'
     _WriteFile(serverdata, DATAFILE)
@@ -53,7 +53,7 @@ def file_upload():
 @app.route('/download/<file>', methods=['GET'])
 def download(file):
   headers = {"Content-Disposition": "attachment; filename=%s" % file}
-  with open('/var/www/kirmani.io/treehacks/public_html/' + str(file), 'r') as f:
+  with open('/var/www/kirmani.io/treehacks/public_html/data/adfs/' + str(file), 'r') as f:
       body = f.read()
   return body
 
@@ -71,7 +71,7 @@ def session(id):
       serverdata['sessions'] = {}
     serverdata['sessions'][jsondata['name']] = jsondata['data']
     _WriteFile(serverdata, DATAFILE)
-    return "{\"success\":true}" 
+    return "{\"success\":true}"
   else:
     id = str(id)
     if request.method == 'GET':
