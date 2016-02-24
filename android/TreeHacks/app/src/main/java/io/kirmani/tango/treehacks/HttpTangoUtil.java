@@ -9,6 +9,7 @@ package io.kirmani.tango.treehacks;
 
 import android.app.Activity;
 import android.content.Context;
+import android.os.Handler;
 import android.provider.Settings.Secure;
 import android.util.Log;
 import android.view.Menu;
@@ -234,19 +235,17 @@ public class HttpTangoUtil {
                     position.put(Y, translation[1]);
                     position.put(Z, translation[2]);
                     device.put(POSITION, position);
-                } else if (!mIsHost && mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT)
-                        .getBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE)
+                } else if (!mIsHost
                         && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                         && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
                     if (pose.statusCode == TangoPoseData.POSE_VALID) {
                         mIsLocalized = true;
-                        showToast("Connected, localized! :)");
                     } else {
                         mIsLocalized = false;
-                        showToast("Lost localization. :(");
                     }
                     device.put(LOCALIZED, mIsLocalized);
                 }
+                device.put(HOST, mIsHost);
                 JSONObject devices = new JSONObject();
                 devices.put(getDeviceUuid(), device);
                 JSONObject requestBody = new JSONObject();
@@ -273,6 +272,10 @@ public class HttpTangoUtil {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    public boolean isLocalized() {
+        return mIsLocalized;
     }
 
     private void checkForUpdates() {
@@ -344,6 +347,7 @@ public class HttpTangoUtil {
                     try {
                         URL url = new URL(BASE_URL + response.getString(ADF));
                         URLConnection connection = url.openConnection();
+                        showToast("Connected, downloading ADF...");
                         connection.connect();
                         int fileLength = connection.getContentLength();
 
@@ -373,7 +377,7 @@ public class HttpTangoUtil {
                     }
                 }
             };
-            showToast("Connected, Downloading ADF and localizing...");
+            // showToast("Connected, downloading ADF and localizing...");
             t.start();
         }
     }
@@ -387,9 +391,14 @@ public class HttpTangoUtil {
         return Secure.getString(mContext.getContentResolver(), Secure.ANDROID_ID);
     }
 
-    private void showToast(String message) {
-        Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
+    private void showToast(final String message) {
+        Handler h = new Handler(mContext.getMainLooper());
+        h.post(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
+            }
+        });
     }
-
 }
 
