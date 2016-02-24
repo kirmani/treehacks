@@ -48,7 +48,7 @@ public class JoinSessionDialogFragment extends DialogFragment {
                         view.findViewById(R.id.session_create);
                     String sessionId = editText.getText().toString();
                     Log.d(TAG, String.format(
-                                "Attempting to create session with ID: %s",
+                                "Attempting to join session with ID: %s",
                                 sessionId));
                     HttpTangoUtil.getInstance(getActivity().getApplicationContext())
                         .joinSession(sessionId);
