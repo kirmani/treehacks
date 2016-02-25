@@ -25,5 +25,5 @@ proguard/
 # Log Files
 *.log
 
-public_html/app.pyc
-public_html/data.json
+*.pyc
+public_html/data/
