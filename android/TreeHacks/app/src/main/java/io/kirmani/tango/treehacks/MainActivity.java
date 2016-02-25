@@ -48,7 +48,12 @@ import com.projecttango.tangosupport.TangoPointCloudManager;
 import com.projecttango.tangosupport.TangoSupport;
 import com.projecttango.tangosupport.TangoSupport.IntersectionPointPlaneModelPair;
 
+import org.rajawali3d.math.vector.Vector3;
 import org.rajawali3d.scene.ASceneFrameCallback;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * An example showing how to build a very simple augmented reality application
@@ -93,10 +98,8 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     private Tango mTango;
     private AtomicBoolean mIsConnected = new AtomicBoolean(false);
     private double mCameraPoseTimestamp = 0;
-    private int mStateUpdate = 0;
-    private boolean mIsRunning = false;
+    private int mStateUpdate = 20;
     private boolean mLearning = true;
-    private boolean mIsLocalizedPrev = false;
 
     public static final TangoCoordinateFramePair FRAME_PAIR = new TangoCoordinateFramePair(
             TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
@@ -166,29 +169,24 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     @Override
     protected void onPause() {
         super.onPause();
-        if (mIsRunning) {
-            if (mIsConnected.compareAndSet(true, false)) {
-                mRenderer.getCurrentScene().clearFrameCallbacks();
-                mGLView.disconnectCamera();
-                mTango.disconnect();
-            }
-            mIsRunning = false;
+        disconnect();
+    }
+
+    public void disconnect() {
+        if (mIsConnected.compareAndSet(true, false)) {
+            mRenderer.getCurrentScene().clearFrameCallbacks();
+            mGLView.disconnectCamera();
+            mTango.disconnect();
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (HttpTangoUtil.getInstance(getApplicationContext()).isReadyToResume()) {
-            resume();
-        }
+        connect();
     }
 
-    public void disableLearning() {
-        mLearning = false;
-    }
-
-    public void resume() {
+    public void connect() {
         if (mIsConnected.compareAndSet(false, true)) {
             try {
                 connectTango();
@@ -199,7 +197,10 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                         Toast.LENGTH_SHORT).show();
             }
         }
-        mIsRunning = true;
+    }
+
+    public void setLearning(boolean learning) {
+        mLearning = learning;
     }
 
     /**
@@ -307,6 +308,17 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                     } else {
                         Log.w(TAG, "Unable to get device pose at time: " + rgbTimestamp);
                     }
+                }
+                mRenderer.removeAllObjects();
+                try {
+                    for (JSONObject device :HttpTangoUtil
+                            .getInstance(getApplicationContext()).getAllOtherDevices()) {
+                        JSONArray position = device.getJSONArray("position");
+                        mRenderer.addObject(new Vector3(position.getDouble(0),
+                                    position.getDouble(1), position.getDouble(2)));
+                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, e.getMessage());
                 }
             }
 

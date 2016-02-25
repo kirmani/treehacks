@@ -16,7 +16,7 @@
 package io.kirmani.tango.treehacks;
 
 import android.content.Context;
-
+import android.graphics.Color;
 import android.view.MotionEvent;
 
 import com.google.atap.tangoservice.TangoPoseData;
@@ -28,12 +28,15 @@ import org.rajawali3d.materials.methods.DiffuseMethod;
 import org.rajawali3d.materials.textures.ATexture;
 import org.rajawali3d.materials.textures.Texture;
 import org.rajawali3d.math.vector.Vector3;
-import org.rajawali3d.primitives.Cube;
+import org.rajawali3d.primitives.Sphere;
 
 import com.projecttango.rajawali.DeviceExtrinsics;
 import com.projecttango.rajawali.Pose;
 import com.projecttango.rajawali.ScenePoseCalculator;
 import com.projecttango.rajawali.ar.TangoRajawaliRenderer;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Very simple example augmented reality renderer which displays a cube fixed in place.
@@ -51,11 +54,13 @@ import com.projecttango.rajawali.ar.TangoRajawaliRenderer;
  *   (@see AugmentedRealityActivity)
  */
 public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
-    private static final float CUBE_SIDE_LENGTH = 0.5f;
+    private static final int SPHERE_DIVISIONS = 20;
+    private static final float SPHERE_RADIUS = 0.25f;
 
     private Object3D mObject;
     private Pose mObjectPose;
     private boolean mObjectPoseUpdated = false;
+    private Set<Object3D> mChildren;
 
     public AugmentedRealityRenderer(Context context) {
         super(context);
@@ -74,44 +79,11 @@ public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
         light.setPosition(3, 2, 4);
         getCurrentScene().addLight(light);
 
-        // Set-up a material: green with application of the light and
-        // instructions.
-        Material material = new Material();
-        material.setColor(0xff009900);
-        try {
-            Texture t = new Texture("instructions", R.drawable.instructions);
-            material.addTexture(t);
-        } catch (ATexture.TextureException e) {
-            e.printStackTrace();
-        }
-        material.setColorInfluence(0.1f);
-        material.enableLighting(true);
-        material.setDiffuseMethod(new DiffuseMethod.Lambert());
-
-        // Build a Cube and place it initially in the origin.
-        mObject = new Cube(CUBE_SIDE_LENGTH);
-        mObject.setMaterial(material);
-        mObject.setPosition(0, 0, -3);
-        mObject.setRotation(Vector3.Axis.Z, 180);
-        getCurrentScene().addChild(mObject);
+        mChildren = new HashSet<Object3D>();
     }
 
     @Override
     protected void onRender(long elapsedRealTime, double deltaTime) {
-        // Update the AR object if necessary
-        // Synchronize against concurrent access with the setter below.
-        synchronized (this) {
-            if (mObjectPoseUpdated) {
-                // Place the 3D object in the location of the detected plane.
-                mObject.setPosition(mObjectPose.getPosition());
-                mObject.setOrientation(mObjectPose.getOrientation());
-                // Move it forward by half of the size of the cube to make it
-                // flush with the plane surface.
-                mObject.moveForward(CUBE_SIDE_LENGTH / 2.0f);
-                mObjectPoseUpdated = false;
-            }
-        }
-
         super.onRender(elapsedRealTime, deltaTime);
     }
 
@@ -135,6 +107,26 @@ public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
         Pose cameraPose = ScenePoseCalculator.toOpenGlCameraPose(devicePose, extrinsics);
         getCurrentCamera().setRotation(cameraPose.getOrientation());
         getCurrentCamera().setPosition(cameraPose.getPosition());
+    }
+
+    public void removeAllObjects() {
+        for (Object3D object : mChildren) {
+            getCurrentScene().removeChild(object);
+        }
+    }
+
+    public void addObject(Vector3 position) {
+        Object3D object = new Sphere(SPHERE_RADIUS, SPHERE_DIVISIONS, SPHERE_DIVISIONS);
+        Material material = new Material();
+        material.setColor(Color.BLUE);
+        material.setColorInfluence(0.1f);
+        material.enableLighting(true);
+        material.setDiffuseMethod(new DiffuseMethod.Lambert());
+        object.setMaterial(material);
+        object.setPosition(new Vector3(position));
+        object.setOrientation(getCurrentCamera().getOrientation());
+        mChildren.add(object);
+        getCurrentScene().addChild(object);
     }
 
     @Override

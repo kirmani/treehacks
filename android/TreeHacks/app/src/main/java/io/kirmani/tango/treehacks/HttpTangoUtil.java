@@ -54,6 +54,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.MalformedURLException;
 import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import net.gotev.uploadservice.MultipartUploadRequest;
 
@@ -70,15 +73,9 @@ public class HttpTangoUtil {
     private static final String INTENT_IMPORTEXPORT_CLASSNAME = "com.google.atap.tango.RequestImportExportActivity";
 
     // Keys
-    private static final String SESSION_NAME = "name";
-    private static final String SESSION_DATA = "data";
     private static final String POSITION = "position";
     private static final String HOST = "host";
-    private static final String X = "x";
-    private static final String Y = "y";
-    private static final String Z = "z";
     private static final String JOIN_WAITING = "join_waiting";
-    private static final String ADF = "adf";
     private static final String DEVICES = "devices";
     private static final String LOCALIZED = "localized";
 
@@ -87,11 +84,13 @@ public class HttpTangoUtil {
     private MainActivity mActivity;
     private Tango mTango;
     private AugmentedRealityRenderer mRenderer;
+
     private String mSessionId;
     private boolean mIsHost;
-    private boolean mIsLocalized;
-    private boolean dummy = true;
-    private boolean mReadyToResume = false;
+    private boolean mLocalized = false;
+    private boolean mJoinWaiting = false;
+    private TangoPoseData mPose;
+    private JSONObject mAllDevices;
 
     private final Object mSharedLock = new Object();
 
@@ -118,31 +117,41 @@ public class HttpTangoUtil {
         mRenderer = renderer;
     }
 
-    public boolean isReadyToResume() {
-        return mReadyToResume;
-    }
-
     public void createSession(final String sessionId) {
-        String url = BASE_URL + SESSION + "/" + sessionId;
-        mActivity.resume();
-        mReadyToResume = true;
-        mActivity.startActivityForResult(
-                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
-                Tango.TANGO_INTENT_ACTIVITYCODE);
-        mIsHost = true;
-        mIsLocalized = true;
         JsonObjectRequest request = new JsonObjectRequest
-            (Request.Method.POST, url, new Response.Listener<JSONObject>() {
+            (Request.Method.POST, getSessionUrl(sessionId), new Response.Listener<JSONObject>() {
                 @Override
                 public void onResponse(JSONObject response) {
                     Log.d(TAG, response.toString());
-                    mSessionId = sessionId;
-                    showToast("Connected, hosting! :)");
+                    showToast(String.format("Session (%s) created! :)", sessionId));
+                    joinSession(sessionId);
                 }
             }, new Response.ErrorListener() {
                 @Override
                 public void onErrorResponse(VolleyError error) {
-                    // handle error
+                    Log.d(TAG, error.toString());
+                }
+            });
+        HttpRequestUtil.getInstance(mContext).getRequestQueue().start();
+        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+    }
+
+    public void joinSession(final String sessionId) {
+        mActivity.startActivityForResult(
+                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
+                Tango.TANGO_INTENT_ACTIVITYCODE);
+        JsonObjectRequest request = new JsonObjectRequest
+            (Request.Method.POST, getJoinUrl(sessionId), new Response.Listener<JSONObject>() {
+                @Override
+                public void onResponse(JSONObject response) {
+                    Log.d(TAG, response.toString());
+                    mSessionId = sessionId;
+                    getUpdates();
+                }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    Log.d(TAG, error.toString());
                 }
             });
         // Access the RequestQueue through singleton class
@@ -150,34 +159,70 @@ public class HttpTangoUtil {
         HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
     }
 
-    public void joinSession(final String sessionId) {
-        mActivity.disableLearning();
-        mActivity.resume();
-        mReadyToResume = true;
-        mActivity.startActivityForResult(
-                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
-                Tango.TANGO_INTENT_ACTIVITYCODE);
-        String url = BASE_URL + SESSION;
+    public void updatePose(TangoPoseData pose) {
+        synchronized (mSharedLock) {
+            if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
+                    && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
+                mPose = pose;
+            } else if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE
+                    && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
+                mPose = pose;
+            } else if (!mIsHost
+                    && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
+                    && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
+                if (pose.statusCode == TangoPoseData.POSE_VALID) {
+                    if (!mLocalized) {
+                        showToast("Localized! :)");
+                    }
+                    mLocalized = true;
+                } else {
+                    if (mLocalized) {
+                        showToast("Lost localization. :(");
+                    }
+                    mLocalized = false;
+                }
+            }
+        }
+        getUpdates();
+    }
+
+    private void getUpdates() {
+        if (mSessionId == null) {
+            return;
+        }
+
+        JsonObjectRequest request = new JsonObjectRequest
+            (Request.Method.GET, getSessionUrl(), new Response.Listener<JSONObject>() {
+                @Override
+                public void onResponse(JSONObject response) {
+                    handleUpdates(response);
+                    sendUpdates();
+                }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    // handle error
+                }
+            });
+        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+    }
+
+    private void sendUpdates() {
         try {
             JSONObject device = new JSONObject();
-            mIsHost = false;
-            mIsLocalized = false;
+            device.put(POSITION, new JSONArray(mPose.translation));
+            device.put(LOCALIZED, mLocalized);
             device.put(HOST, mIsHost);
-            device.put(LOCALIZED, mIsLocalized);
             JSONObject devices = new JSONObject();
             devices.put(getDeviceUuid(), device);
-            JSONObject requestData = new JSONObject();
-            requestData.put(DEVICES, devices);
-            requestData.put(JOIN_WAITING, true);
             JSONObject requestBody = new JSONObject();
-            requestBody.put(SESSION_NAME, sessionId);
-            requestBody.put(SESSION_DATA, requestData);
+            requestBody.put(DEVICES, devices);
             JsonObjectRequest request = new JsonObjectRequest
-                (Request.Method.POST, url, requestBody, new Response.Listener<JSONObject>() {
+                (Request.Method.PUT, getSessionUrl(), requestBody,
+                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
                         Log.d(TAG, response.toString());
-                        mSessionId = sessionId;
                     }
                 }, new Response.ErrorListener() {
                     @Override
@@ -186,96 +231,138 @@ public class HttpTangoUtil {
                     }
                 });
             // Access the RequestQueue through singleton class
-            HttpRequestUtil.getInstance(mContext).getRequestQueue().start();
             HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public void updatePose(TangoPoseData pose) {
-        if (mSessionId == null)
-            return;
-        String url = BASE_URL + SESSION + "/" + mSessionId;
-        double[] translation = pose.translation;
-        double[] rotation = pose.rotation;
-        synchronized (mSharedLock) {
-            try {
-                JSONObject device = new JSONObject();
-                if (!mIsHost
-                        && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
-                        && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
-                    if (pose.statusCode == TangoPoseData.POSE_VALID) {
-                        mIsLocalized = true;
-                    } else {
-                        mIsLocalized = false;
-                    }
-                    device.put(LOCALIZED, mIsLocalized);
-                }
-                device.put(POSITION, new JSONArray(translation));
-                device.put(HOST, mIsHost);
-                JSONObject devices = new JSONObject();
-                devices.put(getDeviceUuid(), device);
-                JSONObject requestBody = new JSONObject();
-                requestBody.put(DEVICES, devices);
-                JsonObjectRequest request = new JsonObjectRequest
-                    (Request.Method.PUT, url, requestBody, new Response.Listener<JSONObject>() {
-                        @Override
-                        public void onResponse(JSONObject response) {
-                            Log.d(TAG, response.toString());
-                        }
-                    }, new Response.ErrorListener() {
-                        @Override
-                        public void onErrorResponse(VolleyError error) {
-                            // handle error
-                        }
-                    });
-                // Access the RequestQueue through singleton class
-                HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
-
-                // check for updates
-                checkForUpdates();
-
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    public boolean isLocalized() {
-        return mIsLocalized;
-    }
-
-    private void checkForUpdates() {
-        String url = BASE_URL + SESSION + "/" + mSessionId;
-        JsonObjectRequest request = new JsonObjectRequest
-            (Request.Method.GET, url, new Response.Listener<JSONObject>() {
-                @Override
-                public void onResponse(JSONObject response) {
-                    handleUpdates(response);
-                }
-            }, new Response.ErrorListener() {
-                @Override
-                public void onErrorResponse(VolleyError error) {
-                    // handle error
-                }
-            });
-        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
-    }
-
     private void handleUpdates(JSONObject response) {
         try {
-            if (mIsHost && response.getBoolean(JOIN_WAITING) && dummy) {
-                // save and upload ADF
-                saveADF();
-                dummy = false;
-            } else if (!mIsHost && response.has(ADF) && dummy) {
-                downloadADF(response);
-                dummy = false;
+            JSONObject currentDevice = getCurrentDeviceResponse(response);
+            mIsHost = currentDevice.getBoolean(HOST);
+            if (mIsHost) {
+                mLocalized = true;
             }
+            if (mJoinWaiting != response.getBoolean(JOIN_WAITING)) {
+                mJoinWaiting = response.getBoolean(JOIN_WAITING);
+                if (mJoinWaiting) {
+                    if (mIsHost) {
+                        uploadADF();
+                    } else {
+                        downloadADF();
+                    }
+                }
+            }
+            mAllDevices = response.getJSONObject(DEVICES);
         } catch (JSONException e) {
-            throw new RuntimeException(e);
+            Log.d(TAG, e.toString());
+            showToast(e.getMessage());
         }
+    }
+
+    public List<JSONObject> getAllOtherDevices() {
+        if (mAllDevices == null) {
+            return new ArrayList<JSONObject>();
+        }
+        ArrayList<JSONObject> otherDevices = new ArrayList<JSONObject>();
+        Iterator<String> iter = mAllDevices.keys();
+        while (iter.hasNext()) {
+            String uuid = iter.next();
+            if (!uuid.equals(getDeviceUuid())) {
+                try {
+                    if (mAllDevices.getJSONObject(uuid).getBoolean(LOCALIZED)) {
+                        otherDevices.add(mAllDevices.getJSONObject(uuid));
+                    }
+                } catch (JSONException e) {
+                    Log.d(TAG, e.toString());
+                    showToast(e.getMessage());
+                }
+            }
+        }
+        return otherDevices;
+    }
+
+    private void uploadADF() {
+        showToast("Saving ADF...");
+        String uuid = mTango.saveAreaDescription();
+        exportADF(uuid, "/sdcard/");
+
+        try {
+            Thread.sleep(5000);
+            MultipartUploadRequest req =
+                new MultipartUploadRequest(mContext, getUploadUrl())
+                .addFileToUpload("/sdcard/" + uuid, "adf")
+                .addParameter("session", mSessionId);
+            req.startUpload();
+        } catch (FileNotFoundException e) {
+            showToast(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            showToast("Missing some arguments. " + e.getMessage());
+        } catch (MalformedURLException e) {
+            showToast(e.getMessage());
+        } catch (InterruptedException e) {
+            showToast(e.getMessage());
+        }
+    }
+
+    public void downloadADF() {
+        Thread t = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    URL url = new URL(getDownloadUrl());
+                    URLConnection connection = url.openConnection();
+                    connection.connect();
+                    int fileLength = connection.getContentLength();
+
+                    // download the file
+                    showToast("Downloading ADF...");
+                    String outputFile = "/sdcard/" + mSessionId;
+                    InputStream input = new BufferedInputStream(url.openStream());
+                    OutputStream output = new FileOutputStream(outputFile);
+
+                    byte data[] = new byte[1024];
+                    long total = 0;
+                    int count;
+                    while ((count = input.read(data)) != -1) {
+                        total += count;
+                        output.write(data, 0, count);
+                    }
+
+                    output.flush();
+                    output.close();
+                    input.close();
+
+                    // import ADF
+                    showToast("Importing ADF...");
+                    mActivity.disconnect();
+                    mActivity.setLearning(false);
+                    mActivity.connect();
+                    mTango.experimentalLoadAreaDescriptionFromFile(outputFile);
+                } catch (IOException e) {
+                    Log.e(TAG, e.getMessage());
+                    showToast(e.getMessage());
+                }
+            }
+        };
+        t.start();
+    }
+
+    private JSONObject getCurrentDeviceResponse(JSONObject response) throws JSONException {
+        return response.getJSONObject(DEVICES).getJSONObject(getDeviceUuid());
+    }
+
+    private String getDownloadUrl() {
+        return getSessionUrl() + "/download";
+    }
+
+    private String getUploadUrl() {
+        return getSessionUrl() + "/upload";
+    }
+
+    private String getJoinUrl(String sessionId) {
+        return getSessionUrl(sessionId) + "/join";
     }
 
     private String getSessionUrl() {
@@ -285,77 +372,10 @@ public class HttpTangoUtil {
         return BASE_URL + SESSION + "/" + mSessionId;
     }
 
-    public void saveADF() {
-        Thread t = new Thread() {
-            @Override
-            public void run() {
-                super.run();
-                String url = getSessionUrl() + UPLOAD;
-                String uuid = mTango.saveAreaDescription();
-                exportADF(uuid, "/sdcard/");
-
-                try {
-                    Thread.sleep(5000);
-                    MultipartUploadRequest req = new MultipartUploadRequest(mContext, url)
-                        .addFileToUpload("/sdcard/" + uuid, "adf")
-                        .addParameter("session", mSessionId);
-                    req.startUpload();
-                } catch (FileNotFoundException e) {
-                    showToast(e.getMessage());
-                } catch (IllegalArgumentException e) {
-                    showToast("Missing some arguments. " + e.getMessage());
-                } catch (MalformedURLException e) {
-                    showToast(e.getMessage());
-                } catch (InterruptedException e) {
-                    showToast(e.getMessage());
-                }
-            }
-        };
-        t.start();
+    private String getSessionUrl(String sessionId) {
+        return BASE_URL + SESSION + "/" + sessionId;
     }
 
-    public void downloadADF(final JSONObject response) {
-        if (response.has(ADF)) {
-            Thread t = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        URL url = new URL(response.getString(ADF));
-                        URLConnection connection = url.openConnection();
-                        showToast("Connected, downloading ADF...");
-                        connection.connect();
-                        int fileLength = connection.getContentLength();
-
-                        // download the file
-                        String outputFile = "/sdcard/" + response.getString(ADF);
-                        InputStream input = new BufferedInputStream(url.openStream());
-                        OutputStream output = new FileOutputStream(outputFile);
-
-                        byte data[] = new byte[1024];
-                        long total = 0;
-                        int count;
-                        while ((count = input.read(data)) != -1) {
-                            total += count;
-                            output.write(data, 0, count);
-                        }
-
-                        output.flush();
-                        output.close();
-                        input.close();
-
-                        // import ADF
-                        mTango.experimentalLoadAreaDescriptionFromFile(outputFile);
-                    } catch (IOException e) {
-                        Log.e(TAG, e.getMessage());
-                    } catch (JSONException e) {
-                        Log.e(TAG, e.getMessage());
-                    }
-                }
-            };
-            // showToast("Connected, downloading ADF and localizing...");
-            t.start();
-        }
-    }
 
     private void exportADF(String uuid, String destinationFile) {
         Log.d(TAG, destinationFile);
