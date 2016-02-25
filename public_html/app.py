@@ -58,7 +58,7 @@ def SessionDownload(session_id):
   if not os.path.isfile(session_adf_file):
     return jsonify({"error": "No ADF exists."})
   headers = {"Content-Disposition": "attachment; filename=%s_adf" % session_id}
-  with open(session_adf_file, 'r') as f:
+  with open(session_adf_file, 'rb') as f:
     lock.acquire()
     body = f.read()
     lock.release()
