@@ -26,27 +26,22 @@ SESSION_DATA_FILE = 'session_data.json'
 app = Flask(__name__, static_url_path='')
 app.secret_key = 'treehacks'
 
+sessions = {}
+
 @app.route('/')
 def Home():
   return 'Hello world!'
 
 @app.route('/session/<session_id>/upload', methods=['POST'])
 def file_upload(session_id):
-  print "UPLOAD"
-  print request.content_length
-  if request.method == 'POST':
-    file = request.files['adf']
-    session = request.values['session']
-    print session
-    session_dir = DATA_DIR + "/" + session_id
-    if not os.path.isdir(session_dir):
-      os.mkdir(session_dir)
-    adf_file = session_dir + "/adf"
-    file.save(adf_file)
-    serverdata = _LoadFile(SESSIONS_FILE)
-    serverdata['sessions'][session]['adf'] = adf_file
-    _WriteFile(serverdata, SESSIONS_FILE)
-  return "Uploader"
+  adf = request.files['adf']
+  session_dir = DATA_DIR + "/" + session_id
+  if not os.path.isdir(session_dir):
+    os.mkdir(session_dir)
+  adf_file = session_dir + "/adf"
+  adf.save(adf_file)
+  sessions[session_id]['join_waiting'] = False
+  return jsonify(sessions[session_id])
 
 @app.route('/download/<file>', methods=['GET'])
 def download(file):
@@ -55,53 +50,42 @@ def download(file):
       body = f.read()
   return body
 
+@app.route('/session/<session_id>/join', methods=['POST'])
+def SessionJoin(session_id):
+  if session_id not in sessions:
+    return jsonify({"error": "Session does not exist."})
+  sessions[session_id]['join_waiting'] = True
+  return sessions[session_id]
+
+@app.route('/debug/sessions', methods=['GET'])
+def DebugSessions():
+  return jsonify(sessions)
+
 @app.route('/session/<session_id>', methods=['POST', 'PUT', 'GET'])
-def session(session_id):
-  session_dir = DATA_DIR + "/" + session_id
-  session_data_file = session_dir + "/" + SESSION_DATA_FILE
+def Session(session_id):
   if request.method == 'POST':
-    if not os.path.isdir(session_dir):
-      print("Creating session: " + session_id)
-      os.mkdir(session_dir)
-    else:
+    if session_id in sessions:
       return jsonify({"error": "Session already exists."})
+    print("Creating session: " + session_id)
     session_data = {
           'join_waiting': False,
           'devices': {},
         }
-    _WriteFile(session_data, session_data_file)
+    sessions[session_id] = session_data
     return jsonify(session_data)
   if request.method == 'PUT':
-    if not os.path.isdir(session_dir):
+    if session_id not in sessions:
       return jsonify({"error": "Session does not exist."})
-    session_data = _LoadFile(session_data_file)
     request_devices = request.json['devices']
     print(request_devices)
     for uuid in request_devices:
-      session_data['devices'][uuid] = request_devices[uuid]
-    _WriteFile(session_data, session_data_file)
-    return jsonify(session_data)
+      sessions[session_id]['devices'][uuid] = request_devices[uuid]
+    return jsonify(sessions[session_id])
   if request.method == 'GET':
-    if not os.path.isdir(session_dir):
+    if session_id not in sessions:
       return jsonify({"error": "Session does not exist."})
-    session_data = _LoadFile(session_data_file)
-    return jsonify(session_data)
+    return jsonify(sessions[session_id])
   return jsonify({"error": "Unexpected error."})
-
-def _LoadFile(filename):
-  try:
-    with open(filename, 'r+') as f:
-      return json.load(fp=f)
-  except IOError:
-    print "Error"
-    return {}
-
-def _WriteFile(data, filename):
-  j = json.dumps(data, indent=4)
-  # print "WRITE: " + j
-  #print "FILE: " + filename
-  with open(filename, 'w+') as f:
-    f.write(j)
 
 if __name__ == '__main__':
   port = int(os.environ.get('PORT', 33507))
