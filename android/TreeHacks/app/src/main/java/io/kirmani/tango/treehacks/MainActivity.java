@@ -83,7 +83,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
        CreateSessionDialogFragment.CreateSessionDialogListener,
        JoinSessionDialogFragment.JoinSessionDialogListener {
     private static final String TAG = MainActivity.class.getSimpleName();
-    private static final int STATE_UPDATE_LIMIT = 10;
+    private static final int STATE_UPDATE_LIMIT = 20;
 
     private TangoRajawaliView mGLView;
     private AugmentedRealityRenderer mRenderer;
