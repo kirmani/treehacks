@@ -101,9 +101,13 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     private int mStateUpdate = 20;
     private boolean mLearning = true;
     private String mAdfUuid = null;
+    private Menu mMenu;
 
     public static final TangoCoordinateFramePair FRAME_PAIR = new TangoCoordinateFramePair(
             TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
+            TangoPoseData.COORDINATE_FRAME_DEVICE);
+    public static final TangoCoordinateFramePair LOCALIZED_FRAME_PAIR = new TangoCoordinateFramePair(
+            TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION,
             TangoPoseData.COORDINATE_FRAME_DEVICE);
 
     @Override
@@ -125,8 +129,9 @@ public class MainActivity extends Activity implements View.OnTouchListener,
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        mMenu = menu;
         MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.main, menu);
+        inflater.inflate(R.menu.main, mMenu);
         return true;
     }
 
@@ -310,7 +315,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                 double rgbTimestamp = mRenderer.getTimestamp();
                 if (rgbTimestamp > mCameraPoseTimestamp) {
                     // Calculate the device pose at the camera frame update time.
-                    TangoPoseData lastFramePose = mTango.getPoseAtTime(rgbTimestamp, FRAME_PAIR);
+                    TangoPoseData lastFramePose = mTango.getPoseAtTime(rgbTimestamp, getFramePair());
                     if (lastFramePose.statusCode == TangoPoseData.POSE_VALID) {
                         // Update the camera pose from the renderer
                         mRenderer.updateRenderCameraPose(lastFramePose, mExtrinsics);
@@ -341,6 +346,10 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                 return true;
             }
         });
+    }
+
+    private TangoCoordinateFramePair getFramePair() {
+        return (HttpTangoUtil.getInstance(this).isLocalized()) ? LOCALIZED_FRAME_PAIR : FRAME_PAIR;
     }
 
     /**
@@ -424,7 +433,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
 
         // Get the device pose at the time the plane data was acquired.
         TangoPoseData devicePose =
-                mTango.getPoseAtTime(xyzIj.timestamp, FRAME_PAIR);
+                mTango.getPoseAtTime(xyzIj.timestamp, getFramePair());
 
         // Update the AR object location.
         TangoPoseData planeFitPose = ScenePoseCalculator.planeFitToTangoWorldPose(

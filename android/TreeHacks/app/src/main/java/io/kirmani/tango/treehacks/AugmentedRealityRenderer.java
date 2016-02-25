@@ -125,7 +125,7 @@ public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
         object.setMaterial(material);
         object.setPosition(device.getPosition());
         object.setOrientation(device.getOrientation());
-        object.moveForward(-1.0f);
+        object.moveForward(-0.5f);
         mChildren.add(object);
         getCurrentScene().addChild(object);
     }

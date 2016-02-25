@@ -69,8 +69,6 @@ public class HttpTangoUtil {
     private boolean mJoinWaiting = false;
 
     private TangoPoseData mPose;
-    private Vector3 mTranslation;
-    private Quaternion mRotation;
     private JSONObject mAllDevices;
 
     private final Object mSharedLock = new Object();
@@ -135,17 +133,14 @@ public class HttpTangoUtil {
             if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                     && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
                 mPose = pose;
-            } else if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
+            }
+            if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                     && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
                 if (pose.statusCode == TangoPoseData.POSE_VALID) {
                     if (!mLocalized) {
                         showToast("Localized! :)");
                     }
                     mLocalized = true;
-                    mTranslation = new Vector3(pose.translation[0], pose.translation[1],
-                            pose.translation[2]);
-                    mRotation = new Quaternion(pose.rotation[3], pose.rotation[0],
-                            pose.rotation[1], pose.rotation[2]);
                 } else {
                     if (mLocalized) {
                         showToast("Lost localization. :(");
@@ -155,6 +150,10 @@ public class HttpTangoUtil {
             }
         }
         getUpdates();
+    }
+
+    public boolean isLocalized() {
+        return mLocalized;
     }
 
     private void getUpdates() {
@@ -237,7 +236,7 @@ public class HttpTangoUtil {
     }
 
     public Set<MultiTangoDevice> getAllOtherDevices() {
-        if ((mAllDevices == null) || (mTranslation == null)) {
+        if (mAllDevices == null) {
             return new HashSet<MultiTangoDevice>();
         }
         Set<MultiTangoDevice> otherDevices = new HashSet<MultiTangoDevice>();
@@ -256,9 +255,10 @@ public class HttpTangoUtil {
                         Quaternion orientation = new Quaternion(rotationArray.getDouble(3),
                             rotationArray.getDouble(0), rotationArray.getDouble(1),
                             rotationArray.getDouble(2));
+                        orientation.conjugate();
                         MultiTangoDevice device = new MultiTangoDevice(uuid);
-                        device.setPosition(position.add(mTranslation));
-                        device.setOrientation(orientation.multiplyLeft(mRotation));
+                        device.setOrientation(orientation);
+                        device.setPosition(position);
                         otherDevices.add(device);
                     }
                 } catch (JSONException e) {
@@ -273,9 +273,6 @@ public class HttpTangoUtil {
     private void uploadADF() {
         showToast("Saving ADF...");
         String uuid = mTango.saveAreaDescription();
-        mActivity.disconnect();
-        mActivity.setAdfUuid(uuid);
-        mActivity.connect();
         exportADF(uuid, "/sdcard/");
 
         try {
