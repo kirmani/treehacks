@@ -7,6 +7,7 @@
 # Distributed under terms of the MIT license.
 
 import json
+import threading
 import time
 import os
 
@@ -23,6 +24,7 @@ app = Flask(__name__, static_url_path='')
 app.secret_key = 'treehacks'
 
 sessions = {}
+lock = threading.Lock()
 
 @app.route('/')
 def Home():
@@ -37,21 +39,30 @@ def file_upload(session_id):
   if not os.path.isdir(session_dir):
     os.mkdir(session_dir)
   adf_file = session_dir + "/" + ADF_FILE_NAME
+  lock.acquire()
   adf.save(adf_file)
+  lock.release()
   sessions[session_id]['join_waiting'] = False
+  sessions[session_id]['adf_last_update'] = time.time()
   return jsonify(sessions[session_id])
 
 @app.route('/session/<session_id>/download', methods=['GET'])
 def SessionDownload(session_id):
   if session_id not in sessions:
     return jsonify({"error": "Session does not exist."})
+  join_request_time = sessions[session_id]['join_request_time']
+  last_update = sessions[session_id]['adf_last_update']
+  if last_update < join_request_time:
+    return jsonify({"download_ready": False})
   session_adf_file = DATA_DIR + "/" + session_id + "/" + ADF_FILE_NAME
   if not os.path.isfile(session_adf_file):
     return jsonify({"error": "No ADF exists."})
   headers = {"Content-Disposition": "attachment; filename=%s_adf" % session_id}
   with open(session_adf_file, 'r') as f:
-      sessions[session_id]['join_waiting'] = False
-      return f.read()
+    lock.acquire()
+    body = f.read()
+    lock.release()
+    return jsonify({"download_ready": True, "data": body})
   return jsonify({"error": "Unexpected error."})
 
 @app.route('/session/<session_id>/join', methods=['POST'])
@@ -59,6 +70,9 @@ def SessionJoin(session_id):
   if session_id not in sessions:
     return jsonify({"error": "Session does not exist."})
   sessions[session_id]['join_waiting'] = True
+  sessions[session_id]['join_request_time'] = time.time()
+  if len(sessions[session_id]['devices']) == 0:
+    sessions[session_id]['join_waiting'] = False
   return jsonify(sessions[session_id])
 
 @app.route('/debug/sessions', methods=['GET'])
@@ -74,6 +88,7 @@ def Session(session_id):
     session_data = {
           'join_waiting': False,
           'devices': {},
+          'adf_last_update': time.time(),
         }
     sessions[session_id] = session_data
     return jsonify(session_data)
@@ -99,7 +114,7 @@ def Session(session_id):
     for device in devices_to_delete:
       del sessions[session_id]['devices'][device]
       if len(sessions[session_id]['devices']) == 0:
-        session[session_id]['join_waiting'] = False
+        sessions[session_id]['join_waiting'] = False
     return jsonify(sessions[session_id])
   return jsonify({"error": "Unexpected error."})
 
