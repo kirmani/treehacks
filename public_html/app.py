@@ -6,6 +6,7 @@
 #
 # Distributed under terms of the MIT license.
 
+import base64
 import json
 import threading
 import time
@@ -53,16 +54,15 @@ def SessionDownload(session_id):
   join_request_time = sessions[session_id]['join_request_time']
   last_update = sessions[session_id]['adf_last_update']
   if last_update < join_request_time:
+    print("Download not ready")
     return jsonify({"download_ready": False})
+  print("Download ready")
   session_adf_file = DATA_DIR + "/" + session_id + "/" + ADF_FILE_NAME
   if not os.path.isfile(session_adf_file):
     return jsonify({"error": "No ADF exists."})
   headers = {"Content-Disposition": "attachment; filename=%s_adf" % session_id}
-  with open(session_adf_file, 'rb') as f:
-    lock.acquire()
-    body = f.read()
-    lock.release()
-    return jsonify({"download_ready": True, "data": body})
+  with open(session_adf_file, 'r') as f:
+    return jsonify({"download_ready": True, "data": base64.b64encode(f.read())})
   return jsonify({"error": "Unexpected error."})
 
 @app.route('/session/<session_id>/join', methods=['POST'])
@@ -96,7 +96,7 @@ def Session(session_id):
     if session_id not in sessions:
       return jsonify({"error": "Session does not exist."})
     devices = request.json['devices']
-    print(devices)
+    # print(devices)
     for uuid in devices:
       sessions[session_id]['devices'][uuid] = devices[uuid]
       if len(sessions[session_id]['devices']) == 1:
