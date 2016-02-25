@@ -58,6 +58,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import org.rajawali3d.math.vector.Vector3;
+
 import net.gotev.uploadservice.MultipartUploadRequest;
 
 public class HttpTangoUtil {
@@ -90,6 +92,7 @@ public class HttpTangoUtil {
     private boolean mLocalized = false;
     private boolean mJoinWaiting = false;
     private TangoPoseData mPose;
+    private Vector3 mTranslation;
     private JSONObject mAllDevices;
 
     private final Object mSharedLock = new Object();
@@ -137,9 +140,6 @@ public class HttpTangoUtil {
     }
 
     public void joinSession(final String sessionId) {
-        mActivity.startActivityForResult(
-                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
-                Tango.TANGO_INTENT_ACTIVITYCODE);
         JsonObjectRequest request = new JsonObjectRequest
             (Request.Method.POST, getJoinUrl(sessionId), new Response.Listener<JSONObject>() {
                 @Override
@@ -164,17 +164,14 @@ public class HttpTangoUtil {
             if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                     && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
                 mPose = pose;
-            } else if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE
-                    && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
-                mPose = pose;
-            } else if (!mIsHost
-                    && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
+            } else if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                     && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
                 if (pose.statusCode == TangoPoseData.POSE_VALID) {
                     if (!mLocalized) {
                         showToast("Localized! :)");
                     }
                     mLocalized = true;
+                    mTranslation = new Vector3(pose.translation);
                 } else {
                     if (mLocalized) {
                         showToast("Lost localization. :(");
@@ -210,7 +207,9 @@ public class HttpTangoUtil {
     private void sendUpdates() {
         try {
             JSONObject device = new JSONObject();
-            device.put(POSITION, new JSONArray(mPose.translation));
+            if (mPose != null) {
+                device.put(POSITION, new JSONArray(mPose.translation));
+            }
             device.put(LOCALIZED, mLocalized);
             device.put(HOST, mIsHost);
             JSONObject devices = new JSONObject();
@@ -261,18 +260,22 @@ public class HttpTangoUtil {
         }
     }
 
-    public List<JSONObject> getAllOtherDevices() {
-        if (mAllDevices == null) {
-            return new ArrayList<JSONObject>();
+    public List<Vector3> getAllOtherDevices() {
+        if ((mAllDevices == null) || (mTranslation == null)) {
+            return new ArrayList<Vector3>();
         }
-        ArrayList<JSONObject> otherDevices = new ArrayList<JSONObject>();
+        ArrayList<Vector3> otherDevices = new ArrayList<Vector3>();
         Iterator<String> iter = mAllDevices.keys();
         while (iter.hasNext()) {
             String uuid = iter.next();
             if (!uuid.equals(getDeviceUuid())) {
                 try {
                     if (mAllDevices.getJSONObject(uuid).getBoolean(LOCALIZED)) {
-                        otherDevices.add(mAllDevices.getJSONObject(uuid));
+                        JSONArray position = mAllDevices.getJSONObject(uuid)
+                            .getJSONArray("position");
+                            Vector3 adfPosition = new Vector3(position.getDouble(0),
+                                position.getDouble(1), position.getDouble(2));
+                            otherDevices.add(adfPosition.subtract(mTranslation));
                     }
                 } catch (JSONException e) {
                     Log.d(TAG, e.toString());
@@ -286,10 +289,14 @@ public class HttpTangoUtil {
     private void uploadADF() {
         showToast("Saving ADF...");
         String uuid = mTango.saveAreaDescription();
+        mActivity.disconnect();
+        mActivity.setAdfUuid(uuid);
+        mActivity.connect();
         exportADF(uuid, "/sdcard/");
 
         try {
             Thread.sleep(5000);
+            showToast("Saving ADF...");
             MultipartUploadRequest req =
                 new MultipartUploadRequest(mContext, getUploadUrl())
                 .addFileToUpload("/sdcard/" + uuid, "adf")
@@ -307,46 +314,50 @@ public class HttpTangoUtil {
     }
 
     public void downloadADF() {
-        Thread t = new Thread() {
-            @Override
-            public void run() {
-                try {
-                    URL url = new URL(getDownloadUrl());
-                    URLConnection connection = url.openConnection();
-                    connection.connect();
-                    int fileLength = connection.getContentLength();
+        JsonObjectRequest request = new JsonObjectRequest
+            (Request.Method.GET, getDownloadUrl(), new Response.Listener<JSONObject>() {
+                @Override
+                public void onResponse(JSONObject response) {
+                    try {
+                        if (response.getBoolean("download_ready")) {
+                            try {
+                                // download the file
+                                showToast("Downloading ADF...");
+                                String outputFile = "/sdcard/" + mSessionId;
+                                OutputStream output = new FileOutputStream(outputFile);
 
-                    // download the file
-                    showToast("Downloading ADF...");
-                    String outputFile = "/sdcard/" + mSessionId;
-                    InputStream input = new BufferedInputStream(url.openStream());
-                    OutputStream output = new FileOutputStream(outputFile);
+                                byte data[] = response.getString("data").getBytes();
 
-                    byte data[] = new byte[1024];
-                    long total = 0;
-                    int count;
-                    while ((count = input.read(data)) != -1) {
-                        total += count;
-                        output.write(data, 0, count);
+                                output.write(data);
+                                output.flush();
+                                output.close();
+
+                                // import ADF
+                                showToast("Importing ADF...");
+                                mActivity.disconnect();
+                                mActivity.setLearning(false);
+                                mActivity.connect();
+                                mTango.experimentalLoadAreaDescriptionFromFile(outputFile);
+                            } catch (IOException e) {
+                                Log.e(TAG, e.getMessage());
+                                showToast(e.getMessage());
+                            }
+                        } else {
+                            showToast("Waiting for new ADF...");
+                            downloadADF();
+                        }
+                    } catch (JSONException e) {
+                        Log.e(TAG, e.getMessage());
+                        showToast(e.getMessage());
                     }
-
-                    output.flush();
-                    output.close();
-                    input.close();
-
-                    // import ADF
-                    showToast("Importing ADF...");
-                    mActivity.disconnect();
-                    mActivity.setLearning(false);
-                    mActivity.connect();
-                    mTango.experimentalLoadAreaDescriptionFromFile(outputFile);
-                } catch (IOException e) {
-                    Log.e(TAG, e.getMessage());
-                    showToast(e.getMessage());
                 }
-            }
-        };
-        t.start();
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    Log.d(TAG, error.toString());
+                }
+            });
+        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
     }
 
     private JSONObject getCurrentDeviceResponse(JSONObject response) throws JSONException {

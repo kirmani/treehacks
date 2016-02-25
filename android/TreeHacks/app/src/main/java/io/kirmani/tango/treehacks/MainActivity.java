@@ -100,6 +100,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     private double mCameraPoseTimestamp = 0;
     private int mStateUpdate = 20;
     private boolean mLearning = true;
+    private String mAdfUuid = null;
 
     public static final TangoCoordinateFramePair FRAME_PAIR = new TangoCoordinateFramePair(
             TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
@@ -117,6 +118,10 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         HttpTangoUtil.getInstance(getApplicationContext()).attachActivity(this);
         mPointCloudManager = new TangoPointCloudManager();
         setContentView(mGLView);
+
+        startActivityForResult(
+                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
+                Tango.TANGO_INTENT_ACTIVITYCODE);
     }
 
     @Override
@@ -203,6 +208,10 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         mLearning = learning;
     }
 
+    public void setAdfUuid(String adfUuid) {
+        mAdfUuid = adfUuid;
+    }
+
     /**
      * Configures the Tango service and connect it to callbacks.
      */
@@ -213,6 +222,9 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         // precise alignment of virtual objects with the RBG image and
         // produce a good AR effect.
         TangoConfig config = mTango.getConfig(TangoConfig.CONFIG_TYPE_CURRENT);
+        if (mAdfUuid != null) {
+            config.putString(TangoConfig.KEY_STRING_AREADESCRIPTION, mAdfUuid);
+        }
         config.putBoolean(TangoConfig.KEY_BOOLEAN_LEARNINGMODE, mLearning);
         config.putBoolean(TangoConfig.KEY_BOOLEAN_LOWLATENCYIMUINTEGRATION, true);
         config.putBoolean(TangoConfig.KEY_BOOLEAN_DEPTH, true);
@@ -310,15 +322,9 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                     }
                 }
                 mRenderer.removeAllObjects();
-                try {
-                    for (JSONObject device :HttpTangoUtil
-                            .getInstance(getApplicationContext()).getAllOtherDevices()) {
-                        JSONArray position = device.getJSONArray("position");
-                        mRenderer.addObject(new Vector3(position.getDouble(0),
-                                    position.getDouble(1), position.getDouble(2)));
-                    }
-                } catch (JSONException e) {
-                    Log.e(TAG, e.getMessage());
+                for (Vector3 device : HttpTangoUtil
+                        .getInstance(getApplicationContext()).getAllOtherDevices()) {
+                    mRenderer.addObject(device);
                 }
             }
 
