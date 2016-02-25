@@ -202,16 +202,7 @@ public class HttpTangoUtil {
         synchronized (mSharedLock) {
             try {
                 JSONObject device = new JSONObject();
-                // send updates
-                if (!mIsHost && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
-                    && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
-                    if (mIsLocalized) {
-                        device.put(POSITION, new JSONArray(translation));
-                    }
-                } else if (mIsHost && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE
-                        && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
-                    device.put(POSITION, new JSONArray(translation));
-                } else if (!mIsHost
+                if (!mIsHost
                         && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                         && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
                     if (pose.statusCode == TangoPoseData.POSE_VALID) {
@@ -221,6 +212,7 @@ public class HttpTangoUtil {
                     }
                     device.put(LOCALIZED, mIsLocalized);
                 }
+                device.put(POSITION, new JSONArray(translation));
                 device.put(HOST, mIsHost);
                 JSONObject devices = new JSONObject();
                 devices.put(getDeviceUuid(), device);
