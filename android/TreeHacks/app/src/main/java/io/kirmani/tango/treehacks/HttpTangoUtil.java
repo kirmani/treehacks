@@ -11,6 +11,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.Handler;
 import android.provider.Settings.Secure;
+import android.util.Base64;
 import android.util.Log;
 import android.view.Menu;
 import android.widget.Toast;
@@ -249,6 +250,7 @@ public class HttpTangoUtil {
                     if (mIsHost) {
                         uploadADF();
                     } else {
+                        showToast("Waiting for new ADF...");
                         downloadADF();
                     }
                 }
@@ -296,7 +298,7 @@ public class HttpTangoUtil {
 
         try {
             Thread.sleep(5000);
-            showToast("Saving ADF...");
+            showToast("Uploading ADF...");
             MultipartUploadRequest req =
                 new MultipartUploadRequest(mContext, getUploadUrl())
                 .addFileToUpload("/sdcard/" + uuid, "adf")
@@ -326,7 +328,8 @@ public class HttpTangoUtil {
                                 String outputFile = "/sdcard/" + mSessionId;
                                 OutputStream output = new FileOutputStream(outputFile);
 
-                                byte data[] = response.getString("data").getBytes();
+                                byte data[] = Base64.decode(response.getString("data"),
+                                        Base64.DEFAULT);
 
                                 output.write(data);
                                 output.flush();
@@ -343,7 +346,6 @@ public class HttpTangoUtil {
                                 showToast(e.getMessage());
                             }
                         } else {
-                            showToast("Waiting for new ADF...");
                             downloadADF();
                         }
                     } catch (JSONException e) {
