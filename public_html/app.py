@@ -7,21 +7,17 @@
 # Distributed under terms of the MIT license.
 
 import json
+import time
 import os
 
 from flask import Flask
 from flask import jsonify
 from flask import request
-from flask import current_app
-from flask import url_for
-from flask import make_response
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = BASE_DIR + "/data"
-ADFS_DIR = DATA_DIR + "/adfs"
-SESSIONS_FILE = DATA_DIR + '/sessions.json'
-
-SESSION_DATA_FILE = 'session_data.json'
+ADF_FILE_NAME = "adf"
+TIMEOUT_SEC = 15
 
 app = Flask(__name__, static_url_path='')
 app.secret_key = 'treehacks'
@@ -34,11 +30,13 @@ def Home():
 
 @app.route('/session/<session_id>/upload', methods=['POST'])
 def file_upload(session_id):
+  if session_id not in sessions:
+    return jsonify({"error": "Session does not exist."})
   adf = request.files['adf']
   session_dir = DATA_DIR + "/" + session_id
   if not os.path.isdir(session_dir):
     os.mkdir(session_dir)
-  adf_file = session_dir + "/adf"
+  adf_file = session_dir + "/" + ADF_FILE_NAME
   adf.save(adf_file)
   sessions[session_id]['join_waiting'] = False
   return jsonify(sessions[session_id])
@@ -49,6 +47,18 @@ def download(file):
   with open('/var/www/kirmani.io/treehacks/public_html/data/adfs/' + str(file), 'r') as f:
       body = f.read()
   return body
+
+@app.route('/session/<session_id>/download', methods=['GET'])
+def SessionDownload(session_id):
+  if session_id not in sessions:
+    return jsonify({"error": "Session does not exist."})
+  session_adf_file = DATA_DIR + "/" + session_id + "/" + ADF
+  if not os.path.isfile(session_adf_file):
+    return jsonify({"error": "No ADF exists."})
+  headers = {"Content-Disposition": "attachment; filename=%s_adf" % session_id}
+  with open(session_adf_file, 'r') as f:
+      return f.read()
+  return jsonify({"error": "Unexpected error."})
 
 @app.route('/session/<session_id>/join', methods=['POST'])
 def SessionJoin(session_id):
@@ -76,14 +86,22 @@ def Session(session_id):
   if request.method == 'PUT':
     if session_id not in sessions:
       return jsonify({"error": "Session does not exist."})
-    request_devices = request.json['devices']
-    print(request_devices)
-    for uuid in request_devices:
-      sessions[session_id]['devices'][uuid] = request_devices[uuid]
+    devices = request.json['devices']
+    print(devices)
+    for uuid in devices:
+      sessions[session_id]['devices'][uuid] = devices[uuid]
+      sessions[session_id]['devices'][uuid]['last_update'] = time.time()
     return jsonify(sessions[session_id])
   if request.method == 'GET':
     if session_id not in sessions:
       return jsonify({"error": "Session does not exist."})
+    current_time = time.time()
+    devices_to_delete = []
+    for device in sessions[session_id]['devices']:
+      if current_time - sessions[session_id]['devices'][device]['last_update'] > TIMEOUT_SEC:
+        devices_to_delete.append(device)
+    for device in devices_to_delete:
+      del sessions[session_id]['devices'][device]
     return jsonify(sessions[session_id])
   return jsonify({"error": "Unexpected error."})
 
