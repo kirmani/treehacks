@@ -55,7 +55,7 @@ def download(file):
       body = f.read()
   return body
 
-@app.route('/session/<session_id>', methods=['POST'])
+@app.route('/session/<session_id>', methods=['POST', 'PUT', 'GET'])
 def session(session_id):
   session_dir = DATA_DIR + "/" + session_id
   session_data_file = session_dir + "/" + SESSION_DATA_FILE
@@ -67,9 +67,24 @@ def session(session_id):
       return jsonify({"error": "Session already exists."})
     session_data = {
           'join_waiting': False,
-          'devices': [],
+          'devices': {},
         }
     _WriteFile(session_data, session_data_file)
+    return jsonify(session_data)
+  if request.method == 'PUT':
+    if not os.path.isdir(session_dir):
+      return jsonify({"error": "Session does not exist."})
+    session_data = _LoadFile(session_data_file)
+    request_devices = request.json['devices']
+    print(request_devices)
+    for uuid in request_devices:
+      session_data['devices'][uuid] = request_devices[uuid]
+    _WriteFile(session_data, session_data_file)
+    return jsonify(session_data)
+  if request.method == 'GET':
+    if not os.path.isdir(session_dir):
+      return jsonify({"error": "Session does not exist."})
+    session_data = _LoadFile(session_data_file)
     return jsonify(session_data)
   return jsonify({"error": "Unexpected error."})
 
