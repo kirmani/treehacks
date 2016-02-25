@@ -122,7 +122,7 @@ public class HttpTangoUtil {
     }
 
     public void createSession(final String sessionId) {
-        String url = BASE_URL + SESSION;
+        String url = BASE_URL + SESSION + "/" + sessionId;
         try {
             mActivity.resume();
             mReadyToResume = true;
@@ -310,12 +310,19 @@ public class HttpTangoUtil {
         }
     }
 
+    private String getSessionUrl() {
+        if (mSessionId == null) {
+            throw new IllegalStateException("mSessionId cannot be null.");
+        }
+        return BASE_URL + SESSION + "/" + mSessionId;
+    }
+
     public void saveADF() {
         Thread t = new Thread() {
             @Override
             public void run() {
                 super.run();
-                String url = BASE_URL + UPLOAD;
+                String url = getSessionUrl() + UPLOAD;
                 String uuid = mTango.saveAreaDescription();
                 exportADF(uuid, "/sdcard/");
 
@@ -345,7 +352,7 @@ public class HttpTangoUtil {
                 @Override
                 public void run() {
                     try {
-                        URL url = new URL(BASE_URL + response.getString(ADF));
+                        URL url = new URL(response.getString(ADF));
                         URLConnection connection = url.openConnection();
                         showToast("Connected, downloading ADF...");
                         connection.connect();
