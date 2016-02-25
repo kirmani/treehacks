@@ -114,8 +114,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         mGLView.setSurfaceRenderer(mRenderer);
         mGLView.setOnTouchListener(this);
         mTango = new Tango(this);
-        HttpTangoUtil.getInstance(getApplicationContext()).attachTango(mTango);
-        HttpTangoUtil.getInstance(getApplicationContext()).attachActivity(this);
+        HttpTangoUtil.getInstance(this).attachTango(mTango);
         mPointCloudManager = new TangoPointCloudManager();
         setContentView(mGLView);
 
@@ -251,8 +250,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                 mStateUpdate = (mStateUpdate + 1) % STATE_UPDATE_LIMIT;
                 if (mStateUpdate % STATE_UPDATE_LIMIT == 0
                         && pose.statusCode == TangoPoseData.POSE_VALID) {
-                    HttpTangoUtil.getInstance(getApplicationContext())
-                            .updatePose(pose);
+                    HttpTangoUtil.getInstance(MainActivity.this).updatePose(pose);
                 }
             }
 
@@ -322,8 +320,8 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                     }
                 }
                 mRenderer.removeAllObjects();
-                for (Vector3 device : HttpTangoUtil
-                        .getInstance(getApplicationContext()).getAllOtherDevices()) {
+                for (MultiTangoDevice device :
+                        HttpTangoUtil.getInstance(MainActivity.this).getAllOtherDevices()) {
                     mRenderer.addObject(device);
                 }
             }

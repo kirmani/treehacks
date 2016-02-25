@@ -115,7 +115,7 @@ public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
         }
     }
 
-    public void addObject(Vector3 position) {
+    public void addObject(MultiTangoDevice device) {
         Object3D object = new Sphere(SPHERE_RADIUS, SPHERE_DIVISIONS, SPHERE_DIVISIONS);
         Material material = new Material();
         material.setColor(Color.BLUE);
@@ -123,8 +123,9 @@ public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
         material.enableLighting(true);
         material.setDiffuseMethod(new DiffuseMethod.Lambert());
         object.setMaterial(material);
-        object.setPosition(new Vector3(position));
-        object.setOrientation(getCurrentCamera().getOrientation());
+        object.setPosition(device.getPosition());
+        object.setOrientation(device.getOrientation());
+        object.moveForward(-1.0f);
         mChildren.add(object);
         getCurrentScene().addChild(object);
     }

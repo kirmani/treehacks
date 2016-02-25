@@ -9,11 +9,10 @@ package io.kirmani.tango.treehacks;
 
 import android.app.Activity;
 import android.content.Context;
-import android.os.Handler;
 import android.provider.Settings.Secure;
+import android.os.Handler;
 import android.util.Base64;
 import android.util.Log;
-import android.view.Menu;
 import android.widget.Toast;
 
 import com.android.volley.Response;
@@ -23,42 +22,22 @@ import com.android.volley.toolbox.JsonObjectRequest;
 
 import com.google.atap.tangoservice.Tango;
 import com.google.atap.tangoservice.TangoConfig;
-import com.google.atap.tangoservice.TangoAreaDescriptionMetaData;
 import com.google.atap.tangoservice.TangoPoseData;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.mime.HttpMultipartMode;
-import org.apache.http.entity.mime.MultipartEntity;
-import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.entity.mime.content.FileBody;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.util.EntityUtils;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
 import java.io.IOException;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.MalformedURLException;
-import java.net.URLConnection;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Set;
 
+import org.rajawali3d.math.Quaternion;
 import org.rajawali3d.math.vector.Vector3;
 
 import net.gotev.uploadservice.MultipartUploadRequest;
@@ -71,54 +50,45 @@ public class HttpTangoUtil {
     private static final String SESSION = "/session";
     private static final String UPLOAD = "/upload";
 
-    // Intents
-    private static final String INTENT_CLASSPACKAGE = "com.projecttango.tango";
-    private static final String INTENT_IMPORTEXPORT_CLASSNAME = "com.google.atap.tango.RequestImportExportActivity";
-
     // Keys
     private static final String POSITION = "position";
+    private static final String ROTATION = "rotation";
     private static final String HOST = "host";
     private static final String JOIN_WAITING = "join_waiting";
     private static final String DEVICES = "devices";
     private static final String LOCALIZED = "localized";
 
     private static HttpTangoUtil mInstance;
-    private Context mContext;
+    private Context mApplicationContext;
     private MainActivity mActivity;
     private Tango mTango;
-    private AugmentedRealityRenderer mRenderer;
 
     private String mSessionId;
     private boolean mIsHost;
     private boolean mLocalized = false;
     private boolean mJoinWaiting = false;
+
     private TangoPoseData mPose;
     private Vector3 mTranslation;
+    private Quaternion mRotation;
     private JSONObject mAllDevices;
 
     private final Object mSharedLock = new Object();
 
-    private HttpTangoUtil(Context context) {
-        mContext = context;
+    private HttpTangoUtil(MainActivity activity) {
+        mActivity = activity;
+        mApplicationContext = activity.getApplicationContext();
     }
 
-    public static synchronized HttpTangoUtil getInstance(Context context) {
+    public static synchronized HttpTangoUtil getInstance(Activity activity) {
         if (mInstance == null) {
-            mInstance = new HttpTangoUtil(context);
+            mInstance = new HttpTangoUtil((MainActivity) activity);
         }
         return mInstance;
     }
 
     public void attachTango(Tango tango) {
         mTango = tango;
-    }
-
-    public void attachActivity(MainActivity activity) {
-        mActivity = activity;
-    }
-
-    public void attachRenderer(AugmentedRealityRenderer renderer) {
-        mRenderer = renderer;
     }
 
     public void createSession(final String sessionId) {
@@ -136,8 +106,8 @@ public class HttpTangoUtil {
                     Log.d(TAG, error.toString());
                 }
             });
-        HttpRequestUtil.getInstance(mContext).getRequestQueue().start();
-        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+        HttpRequestUtil.getInstance(mApplicationContext).getRequestQueue().start();
+        HttpRequestUtil.getInstance(mApplicationContext).addToRequestQueue(request);
     }
 
     public void joinSession(final String sessionId) {
@@ -156,8 +126,8 @@ public class HttpTangoUtil {
                 }
             });
         // Access the RequestQueue through singleton class
-        HttpRequestUtil.getInstance(mContext).getRequestQueue().start();
-        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+        HttpRequestUtil.getInstance(mApplicationContext).getRequestQueue().start();
+        HttpRequestUtil.getInstance(mApplicationContext).addToRequestQueue(request);
     }
 
     public void updatePose(TangoPoseData pose) {
@@ -172,7 +142,10 @@ public class HttpTangoUtil {
                         showToast("Localized! :)");
                     }
                     mLocalized = true;
-                    mTranslation = new Vector3(pose.translation);
+                    mTranslation = new Vector3(pose.translation[0], pose.translation[1],
+                            pose.translation[2]);
+                    mRotation = new Quaternion(pose.rotation[3], pose.rotation[0],
+                            pose.rotation[1], pose.rotation[2]);
                 } else {
                     if (mLocalized) {
                         showToast("Lost localization. :(");
@@ -202,7 +175,7 @@ public class HttpTangoUtil {
                     // handle error
                 }
             });
-        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+        HttpRequestUtil.getInstance(mApplicationContext).addToRequestQueue(request);
     }
 
     private void sendUpdates() {
@@ -210,6 +183,7 @@ public class HttpTangoUtil {
             JSONObject device = new JSONObject();
             if (mPose != null) {
                 device.put(POSITION, new JSONArray(mPose.translation));
+                device.put(ROTATION, new JSONArray(mPose.rotation));
             }
             device.put(LOCALIZED, mLocalized);
             device.put(HOST, mIsHost);
@@ -231,7 +205,7 @@ public class HttpTangoUtil {
                     }
                 });
             // Access the RequestQueue through singleton class
-            HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+            HttpRequestUtil.getInstance(mApplicationContext).addToRequestQueue(request);
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
@@ -262,22 +236,30 @@ public class HttpTangoUtil {
         }
     }
 
-    public List<Vector3> getAllOtherDevices() {
+    public Set<MultiTangoDevice> getAllOtherDevices() {
         if ((mAllDevices == null) || (mTranslation == null)) {
-            return new ArrayList<Vector3>();
+            return new HashSet<MultiTangoDevice>();
         }
-        ArrayList<Vector3> otherDevices = new ArrayList<Vector3>();
+        Set<MultiTangoDevice> otherDevices = new HashSet<MultiTangoDevice>();
         Iterator<String> iter = mAllDevices.keys();
         while (iter.hasNext()) {
             String uuid = iter.next();
             if (!uuid.equals(getDeviceUuid())) {
                 try {
                     if (mAllDevices.getJSONObject(uuid).getBoolean(LOCALIZED)) {
-                        JSONArray position = mAllDevices.getJSONObject(uuid)
-                            .getJSONArray("position");
-                            Vector3 adfPosition = new Vector3(position.getDouble(0),
-                                position.getDouble(1), position.getDouble(2));
-                            otherDevices.add(adfPosition.subtract(mTranslation));
+                        JSONArray positionArray = mAllDevices.getJSONObject(uuid)
+                            .getJSONArray(POSITION);
+                        JSONArray rotationArray = mAllDevices.getJSONObject(uuid)
+                            .getJSONArray(ROTATION);
+                        Vector3 position = new Vector3(positionArray.getDouble(0),
+                            positionArray.getDouble(1), positionArray.getDouble(2));
+                        Quaternion orientation = new Quaternion(rotationArray.getDouble(3),
+                            rotationArray.getDouble(0), rotationArray.getDouble(1),
+                            rotationArray.getDouble(2));
+                        MultiTangoDevice device = new MultiTangoDevice(uuid);
+                        device.setPosition(position.add(mTranslation));
+                        device.setOrientation(orientation.multiplyLeft(mRotation));
+                        otherDevices.add(device);
                     }
                 } catch (JSONException e) {
                     Log.d(TAG, e.toString());
@@ -300,7 +282,7 @@ public class HttpTangoUtil {
             Thread.sleep(5000);
             showToast("Uploading ADF...");
             MultipartUploadRequest req =
-                new MultipartUploadRequest(mContext, getUploadUrl())
+                new MultipartUploadRequest(mApplicationContext, getUploadUrl())
                 .addFileToUpload("/sdcard/" + uuid, "adf")
                 .addParameter("session", mSessionId);
             req.startUpload();
@@ -359,7 +341,7 @@ public class HttpTangoUtil {
                     Log.d(TAG, error.toString());
                 }
             });
-        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
+        HttpRequestUtil.getInstance(mApplicationContext).addToRequestQueue(request);
     }
 
     private JSONObject getCurrentDeviceResponse(JSONObject response) throws JSONException {
@@ -396,15 +378,15 @@ public class HttpTangoUtil {
     }
 
     private String getDeviceUuid() {
-        return Secure.getString(mContext.getContentResolver(), Secure.ANDROID_ID);
+        return Secure.getString(mApplicationContext.getContentResolver(), Secure.ANDROID_ID);
     }
 
     private void showToast(final String message) {
-        Handler h = new Handler(mContext.getMainLooper());
+        Handler h = new Handler(mApplicationContext.getMainLooper());
         h.post(new Runnable() {
             @Override
             public void run() {
-                Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
+                Toast.makeText(mApplicationContext, message, Toast.LENGTH_LONG).show();
             }
         });
     }

@@ -50,8 +50,7 @@ public class CreateSessionDialogFragment extends DialogFragment {
                     Log.d(TAG, String.format(
                                 "Attempting to create session with ID: %s",
                                 sessionId));
-                    HttpTangoUtil.getInstance(getActivity().getApplicationContext())
-                        .createSession(sessionId);
+                    HttpTangoUtil.getInstance(getActivity()).createSession(sessionId);
                 }
             });
         return builder.create();

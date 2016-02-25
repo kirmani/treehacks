@@ -50,8 +50,7 @@ public class JoinSessionDialogFragment extends DialogFragment {
                     Log.d(TAG, String.format(
                                 "Attempting to join session with ID: %s",
                                 sessionId));
-                    HttpTangoUtil.getInstance(getActivity().getApplicationContext())
-                        .joinSession(sessionId);
+                    HttpTangoUtil.getInstance(getActivity()).joinSession(sessionId);
                 }
             });
         return builder.create();
