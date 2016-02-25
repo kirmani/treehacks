@@ -37,6 +37,7 @@ import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.util.EntityUtils;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
 
@@ -123,47 +124,30 @@ public class HttpTangoUtil {
 
     public void createSession(final String sessionId) {
         String url = BASE_URL + SESSION + "/" + sessionId;
-        try {
-            mActivity.resume();
-            mReadyToResume = true;
-            mActivity.startActivityForResult(
-                    Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
-                    Tango.TANGO_INTENT_ACTIVITYCODE);
-            JSONObject device = new JSONObject();
-            mIsHost = true;
-            mIsLocalized = true;
-            device.put(HOST, mIsHost);
-            device.put(LOCALIZED, mIsLocalized);
-            JSONObject devices = new JSONObject();
-            devices.put(getDeviceUuid(), device);
-            JSONObject adfMetadata = new JSONObject();
-            JSONObject requestData = new JSONObject();
-            requestData.put(DEVICES, devices);
-            requestData.put(ADF, adfMetadata);
-            requestData.put(JOIN_WAITING, false);
-            JSONObject requestBody = new JSONObject();
-            requestBody.put(SESSION_NAME, sessionId);
-            requestBody.put(SESSION_DATA, requestData);
-            JsonObjectRequest request = new JsonObjectRequest
-                (Request.Method.POST, url, requestBody, new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        Log.d(TAG, response.toString());
-                        mSessionId = sessionId;
-                        showToast("Connected, hosting! :)");
-                    }
-                }, new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        // handle error
-                    }
-                });
-            // Access the RequestQueue through singleton class
-            HttpRequestUtil.getInstance(mContext).getRequestQueue().start();
-            HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
-        }
+        mActivity.resume();
+        mReadyToResume = true;
+        mActivity.startActivityForResult(
+                Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_ADF_LOAD_SAVE),
+                Tango.TANGO_INTENT_ACTIVITYCODE);
+        mIsHost = true;
+        mIsLocalized = true;
+        JsonObjectRequest request = new JsonObjectRequest
+            (Request.Method.POST, url, new Response.Listener<JSONObject>() {
+                @Override
+                public void onResponse(JSONObject response) {
+                    Log.d(TAG, response.toString());
+                    mSessionId = sessionId;
+                    showToast("Connected, hosting! :)");
+                }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    // handle error
+                }
+            });
+        // Access the RequestQueue through singleton class
+        HttpRequestUtil.getInstance(mContext).getRequestQueue().start();
+        HttpRequestUtil.getInstance(mContext).addToRequestQueue(request);
     }
 
     public void joinSession(final String sessionId) {
@@ -222,19 +206,11 @@ public class HttpTangoUtil {
                 if (!mIsHost && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                     && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
                     if (mIsLocalized) {
-                        JSONObject position = new JSONObject();
-                        position.put(X, translation[0]);
-                        position.put(Y, translation[1]);
-                        position.put(Z, translation[2]);
-                        device.put(POSITION, position);
+                        device.put(POSITION, new JSONArray(translation));
                     }
                 } else if (mIsHost && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE
                         && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_DEVICE) {
-                    JSONObject position = new JSONObject();
-                    position.put(X, translation[0]);
-                    position.put(Y, translation[1]);
-                    position.put(Z, translation[2]);
-                    device.put(POSITION, position);
+                    device.put(POSITION, new JSONArray(translation));
                 } else if (!mIsHost
                         && pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                         && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
