@@ -18,7 +18,11 @@ package io.kirmani.tango.treehacks;
 
 import android.app.Activity;
 import android.app.DialogFragment;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.text.SpannableString;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -104,9 +108,6 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     private Menu mMenu;
 
     public static final TangoCoordinateFramePair FRAME_PAIR = new TangoCoordinateFramePair(
-            TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
-            TangoPoseData.COORDINATE_FRAME_DEVICE);
-    public static final TangoCoordinateFramePair LOCALIZED_FRAME_PAIR = new TangoCoordinateFramePair(
             TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION,
             TangoPoseData.COORDINATE_FRAME_DEVICE);
 
@@ -127,12 +128,37 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                 Tango.TANGO_INTENT_ACTIVITYCODE);
     }
 
+    public void setStatus(String status) {
+        mMenu.findItem(R.id.connection_status).setTitle(status);
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         mMenu = menu;
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.main, mMenu);
         return true;
+    }
+
+    public void setJoinEnabled(final boolean enabled) {
+        Handler h = new Handler(getApplicationContext().getMainLooper());
+        h.post(new Runnable() {
+            @Override
+            public void run() {
+                mMenu.findItem(R.id.action_create).setEnabled(enabled);
+                mMenu.findItem(R.id.action_join).setEnabled(enabled);
+            }
+        });
+    }
+
+    public void setDisconnectEnabled(final boolean enabled) {
+        Handler h = new Handler(getApplicationContext().getMainLooper());
+        h.post(new Runnable() {
+            @Override
+            public void run() {
+                mMenu.findItem(R.id.action_disconnect).setEnabled(enabled);
+            }
+        });
     }
 
     @Override
@@ -145,6 +171,9 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                 return true;
             case R.id.action_join:
                 showJoinSessionDialog();
+                return true;
+            case R.id.action_disconnect:
+                HttpTangoUtil.getInstance(this).disconnect();
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -241,9 +270,6 @@ public class MainActivity extends Activity implements View.OnTouchListener,
         ArrayList<TangoCoordinateFramePair> framePairs =
                 new ArrayList<TangoCoordinateFramePair>();
         framePairs.add(new TangoCoordinateFramePair(
-                TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
-                TangoPoseData.COORDINATE_FRAME_DEVICE));
-        framePairs.add(new TangoCoordinateFramePair(
                 TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION,
                 TangoPoseData.COORDINATE_FRAME_DEVICE));
         framePairs.add(new TangoCoordinateFramePair(
@@ -255,6 +281,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                 mStateUpdate = (mStateUpdate + 1) % STATE_UPDATE_LIMIT;
                 if (mStateUpdate % STATE_UPDATE_LIMIT == 0
                         && pose.statusCode == TangoPoseData.POSE_VALID) {
+                    setJoinEnabled(!HttpTangoUtil.getInstance(MainActivity.this).isConnected());
                     HttpTangoUtil.getInstance(MainActivity.this).updatePose(pose);
                 }
             }
@@ -324,11 +351,8 @@ public class MainActivity extends Activity implements View.OnTouchListener,
                         Log.w(TAG, "Unable to get device pose at time: " + rgbTimestamp);
                     }
                 }
-                mRenderer.removeAllObjects();
-                for (MultiTangoDevice device :
-                        HttpTangoUtil.getInstance(MainActivity.this).getAllOtherDevices()) {
-                    mRenderer.addObject(device);
-                }
+                mRenderer.updateScene(
+                        HttpTangoUtil.getInstance(MainActivity.this).getAllOtherDevices());
             }
 
             @Override
@@ -349,7 +373,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
     }
 
     private TangoCoordinateFramePair getFramePair() {
-        return (HttpTangoUtil.getInstance(this).isLocalized()) ? LOCALIZED_FRAME_PAIR : FRAME_PAIR;
+        return FRAME_PAIR;
     }
 
     /**

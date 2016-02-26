@@ -19,6 +19,10 @@ public class MultiTangoDevice {
         mUuid = uuid;
     }
 
+    public String getUuid() {
+        return mUuid;
+    }
+
     public void setPosition(Vector3 position) {
         mPosition = new Vector3(position);
     }

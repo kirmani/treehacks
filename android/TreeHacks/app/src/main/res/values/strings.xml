@@ -12,6 +12,7 @@
   <string name="session_join">What session do you want to join?</string>
   <string name="session_join_submit">Join it!</string>
 
+  <string name="disconnect">Disconnect</string>
   <string name="disconnected">Disconnected</string>
   <string name="connected_hosting">Connected, hosting</string>
   <string name="connected_localizing">Connected, localizing...</string>

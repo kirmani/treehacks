@@ -33,9 +33,9 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Set;
+import java.util.Map;
 
 import org.rajawali3d.math.Quaternion;
 import org.rajawali3d.math.vector.Vector3;
@@ -63,12 +63,13 @@ public class HttpTangoUtil {
     private MainActivity mActivity;
     private Tango mTango;
 
-    private String mSessionId;
-    private boolean mIsHost;
+    private String mSessionId= null;
+    private boolean mIsHost = false;
     private boolean mLocalized = false;
     private boolean mJoinWaiting = false;
+    private boolean mConnected = false;
+    private TangoPoseData mPose = null;
 
-    private TangoPoseData mPose;
     private JSONObject mAllDevices;
 
     private final Object mSharedLock = new Object();
@@ -85,23 +86,36 @@ public class HttpTangoUtil {
         return mInstance;
     }
 
+    public void disconnect() {
+        mConnected = false;
+        mSessionId = null;
+        mPose = null;
+        mIsHost = false;
+        mLocalized = false;
+        mJoinWaiting = false;
+        mActivity.setStatus("Disconnected");
+        mActivity.setDisconnectEnabled(false);
+    }
+
     public void attachTango(Tango tango) {
         mTango = tango;
     }
 
     public void createSession(final String sessionId) {
+        mActivity.setStatus("Creating session: " + sessionId);
         JsonObjectRequest request = new JsonObjectRequest
             (Request.Method.POST, getSessionUrl(sessionId), new Response.Listener<JSONObject>() {
                 @Override
                 public void onResponse(JSONObject response) {
                     Log.d(TAG, response.toString());
-                    showToast(String.format("Session (%s) created! :)", sessionId));
+                    showToast(String.format("Session created: %s", sessionId));
                     joinSession(sessionId);
                 }
             }, new Response.ErrorListener() {
                 @Override
                 public void onErrorResponse(VolleyError error) {
                     Log.d(TAG, error.toString());
+                    mActivity.setStatus("Failed to create session: " + sessionId);
                 }
             });
         HttpRequestUtil.getInstance(mApplicationContext).getRequestQueue().start();
@@ -109,12 +123,15 @@ public class HttpTangoUtil {
     }
 
     public void joinSession(final String sessionId) {
+        mActivity.setStatus("Joining session: " + sessionId);
         JsonObjectRequest request = new JsonObjectRequest
             (Request.Method.POST, getJoinUrl(sessionId), new Response.Listener<JSONObject>() {
                 @Override
                 public void onResponse(JSONObject response) {
                     Log.d(TAG, response.toString());
+                    mConnected = true;
                     mSessionId = sessionId;
+                    mActivity.setDisconnectEnabled(true);
                     getUpdates();
                 }
             }, new Response.ErrorListener() {
@@ -128,6 +145,10 @@ public class HttpTangoUtil {
         HttpRequestUtil.getInstance(mApplicationContext).addToRequestQueue(request);
     }
 
+    public boolean isConnected() {
+        return mConnected;
+    }
+
     public void updatePose(TangoPoseData pose) {
         synchronized (mSharedLock) {
             if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
@@ -137,14 +158,12 @@ public class HttpTangoUtil {
             if (pose.baseFrame == TangoPoseData.COORDINATE_FRAME_AREA_DESCRIPTION
                     && pose.targetFrame == TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE) {
                 if (pose.statusCode == TangoPoseData.POSE_VALID) {
-                    if (!mLocalized) {
-                        showToast("Localized! :)");
-                    }
+                    if (!mLocalized)
+                        showToast("Localized!");
                     mLocalized = true;
                 } else {
-                    if (mLocalized) {
-                        showToast("Lost localization. :(");
-                    }
+                    if (mLocalized)
+                        showToast("Lost localization.");
                     mLocalized = false;
                 }
             }
@@ -180,12 +199,15 @@ public class HttpTangoUtil {
     private void sendUpdates() {
         try {
             JSONObject device = new JSONObject();
-            if (mPose != null) {
-                device.put(POSITION, new JSONArray(mPose.translation));
-                device.put(ROTATION, new JSONArray(mPose.rotation));
-            }
+            if (mPose == null)
+                return;
+            device.put(POSITION, new JSONArray(mPose.translation));
+            device.put(ROTATION, new JSONArray(mPose.rotation));
             device.put(LOCALIZED, mLocalized);
             device.put(HOST, mIsHost);
+            mActivity.setStatus(String.format("Connected to session: %s (%s, %s)", mSessionId,
+                        (mIsHost) ? "Host" : "Client",
+                        (mLocalized) ? "Localized" : "Not Localized" ));
             JSONObject devices = new JSONObject();
             devices.put(getDeviceUuid(), device);
             JSONObject requestBody = new JSONObject();
@@ -206,16 +228,25 @@ public class HttpTangoUtil {
             // Access the RequestQueue through singleton class
             HttpRequestUtil.getInstance(mApplicationContext).addToRequestQueue(request);
         } catch (JSONException e) {
-            throw new RuntimeException(e);
+            Log.d(TAG, e.toString());
+            showToast(e.getMessage());
         }
     }
 
     private void handleUpdates(JSONObject response) {
         try {
             JSONObject currentDevice = getCurrentDeviceResponse(response);
-            mIsHost = currentDevice.getBoolean(HOST);
-            if (mIsHost) {
-                mLocalized = true;
+            if (currentDevice == null) {
+                return;
+            }
+            if (mIsHost != currentDevice.getBoolean(HOST)) {
+                mIsHost = currentDevice.getBoolean(HOST);
+                if (mIsHost) {
+                    mActivity.disconnect();
+                    mActivity.setLearning(true);
+                    mActivity.connect();
+                    mLocalized = true;
+                }
             }
             if (mJoinWaiting != response.getBoolean(JOIN_WAITING)) {
                 mJoinWaiting = response.getBoolean(JOIN_WAITING);
@@ -223,6 +254,7 @@ public class HttpTangoUtil {
                     if (mIsHost) {
                         uploadADF();
                     } else {
+                        mActivity.setStatus("Waiting For ADF: " + mSessionId);
                         showToast("Waiting for new ADF...");
                         downloadADF();
                     }
@@ -235,11 +267,10 @@ public class HttpTangoUtil {
         }
     }
 
-    public Set<MultiTangoDevice> getAllOtherDevices() {
-        if (mAllDevices == null) {
-            return new HashSet<MultiTangoDevice>();
-        }
-        Set<MultiTangoDevice> otherDevices = new HashSet<MultiTangoDevice>();
+    public Map<String, MultiTangoDevice> getAllOtherDevices() {
+        Map<String, MultiTangoDevice> otherDevices = new HashMap<String, MultiTangoDevice>();
+        if (mAllDevices == null)
+            return otherDevices;
         Iterator<String> iter = mAllDevices.keys();
         while (iter.hasNext()) {
             String uuid = iter.next();
@@ -251,15 +282,17 @@ public class HttpTangoUtil {
                         JSONArray rotationArray = mAllDevices.getJSONObject(uuid)
                             .getJSONArray(ROTATION);
                         Vector3 position = new Vector3(positionArray.getDouble(0),
-                            positionArray.getDouble(1), positionArray.getDouble(2));
-                        Quaternion orientation = new Quaternion(rotationArray.getDouble(3),
-                            rotationArray.getDouble(0), rotationArray.getDouble(1),
-                            rotationArray.getDouble(2));
+                            positionArray.getDouble(2), -positionArray.getDouble(1));
+                        Quaternion orientation = new Quaternion(
+                                rotationArray.getDouble(TangoPoseData.INDEX_ROTATION_W),
+                                rotationArray.getDouble(TangoPoseData.INDEX_ROTATION_X),
+                                rotationArray.getDouble(TangoPoseData.INDEX_ROTATION_Y),
+                                rotationArray.getDouble(TangoPoseData.INDEX_ROTATION_Z));
                         orientation.conjugate();
                         MultiTangoDevice device = new MultiTangoDevice(uuid);
                         device.setOrientation(orientation);
                         device.setPosition(position);
-                        otherDevices.add(device);
+                        otherDevices.put(uuid, device);
                     }
                 } catch (JSONException e) {
                     Log.d(TAG, e.toString());
@@ -272,19 +305,21 @@ public class HttpTangoUtil {
 
     private void uploadADF() {
         showToast("Saving ADF...");
+        mActivity.setStatus("Saving ADF: " + mSessionId);
         String uuid = mTango.saveAreaDescription();
         exportADF(uuid, "/sdcard/");
 
         try {
             Thread.sleep(5000);
             showToast("Uploading ADF...");
+            mActivity.setStatus("Uploading ADF: " + mSessionId);
             MultipartUploadRequest req =
                 new MultipartUploadRequest(mApplicationContext, getUploadUrl())
                 .addFileToUpload("/sdcard/" + uuid, "adf")
                 .addParameter("session", mSessionId);
             req.startUpload();
         } catch (FileNotFoundException e) {
-            showToast(e.getMessage());
+            uploadADF();
         } catch (IllegalArgumentException e) {
             showToast("Missing some arguments. " + e.getMessage());
         } catch (MalformedURLException e) {
@@ -304,6 +339,7 @@ public class HttpTangoUtil {
                             try {
                                 // download the file
                                 showToast("Downloading ADF...");
+                                mActivity.setStatus("Downloading ADF: " + mSessionId);
                                 String outputFile = "/sdcard/" + mSessionId;
                                 OutputStream output = new FileOutputStream(outputFile);
 
@@ -316,6 +352,7 @@ public class HttpTangoUtil {
 
                                 // import ADF
                                 showToast("Importing ADF...");
+                                mActivity.setStatus("Importing ADF: " + mSessionId);
                                 mActivity.disconnect();
                                 mActivity.setLearning(false);
                                 mActivity.connect();
@@ -341,8 +378,12 @@ public class HttpTangoUtil {
         HttpRequestUtil.getInstance(mApplicationContext).addToRequestQueue(request);
     }
 
-    private JSONObject getCurrentDeviceResponse(JSONObject response) throws JSONException {
-        return response.getJSONObject(DEVICES).getJSONObject(getDeviceUuid());
+    private JSONObject getCurrentDeviceResponse(JSONObject response) {
+        try {
+            return response.getJSONObject(DEVICES).getJSONObject(getDeviceUuid());
+        } catch (JSONException e) {
+            return null;
+        }
     }
 
     private String getDownloadUrl() {
@@ -367,7 +408,6 @@ public class HttpTangoUtil {
     private String getSessionUrl(String sessionId) {
         return BASE_URL + SESSION + "/" + sessionId;
     }
-
 
     private void exportADF(String uuid, String destinationFile) {
         Log.d(TAG, destinationFile);

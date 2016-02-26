@@ -6,22 +6,25 @@
         android:id="@+id/connection_status"
         android:orderInCategory="100"
         android:showAsAction="always"
-        android:clickable="false"
+        android:enabled="false"
         android:title="@string/disconnected" />
     <item
         android:id="@+id/action_create"
         android:orderInCategory="100"
         android:showAsAction="always"
+        android:enabled="false"
+        android:actionMenuTextColor="#f00"
         android:title="@string/action_create"/>
     <item
         android:id="@+id/action_join"
         android:orderInCategory="100"
         android:showAsAction="always"
+        android:enabled="false"
         android:title="@string/action_join"/>
     <item
-        android:id="@+id/action_settings"
+        android:id="@+id/action_disconnect"
         android:orderInCategory="100"
         android:showAsAction="always"
-        android:title="@string/action_settings"/>
-
+        android:enabled="false"
+        android:title="@string/disconnect" />
 </menu>

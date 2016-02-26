@@ -28,15 +28,15 @@ import org.rajawali3d.materials.methods.DiffuseMethod;
 import org.rajawali3d.materials.textures.ATexture;
 import org.rajawali3d.materials.textures.Texture;
 import org.rajawali3d.math.vector.Vector3;
-import org.rajawali3d.primitives.Sphere;
+import org.rajawali3d.primitives.Cube;
 
 import com.projecttango.rajawali.DeviceExtrinsics;
 import com.projecttango.rajawali.Pose;
 import com.projecttango.rajawali.ScenePoseCalculator;
 import com.projecttango.rajawali.ar.TangoRajawaliRenderer;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Very simple example augmented reality renderer which displays a cube fixed in place.
@@ -55,12 +55,13 @@ import java.util.Set;
  */
 public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
     private static final int SPHERE_DIVISIONS = 20;
-    private static final float SPHERE_RADIUS = 0.25f;
+    private static final float SPHERE_RADIUS = 0.5f;
 
     private Object3D mObject;
     private Pose mObjectPose;
     private boolean mObjectPoseUpdated = false;
-    private Set<Object3D> mChildren;
+
+    private HashMap<String, Object3D> mDevices;
 
     public AugmentedRealityRenderer(Context context) {
         super(context);
@@ -79,7 +80,7 @@ public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
         light.setPosition(3, 2, 4);
         getCurrentScene().addLight(light);
 
-        mChildren = new HashSet<Object3D>();
+        mDevices = new HashMap<String, Object3D>();
     }
 
     @Override
@@ -109,25 +110,31 @@ public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
         getCurrentCamera().setPosition(cameraPose.getPosition());
     }
 
-    public void removeAllObjects() {
-        for (Object3D object : mChildren) {
-            getCurrentScene().removeChild(object);
+    public void updateScene(Map<String, MultiTangoDevice> devices) {
+        for (String uuid : devices.keySet()) {
+            if (!mDevices.containsKey(uuid)) {
+                Object3D object = new Cube(SPHERE_RADIUS);
+                Material material = new Material();
+                material.setColor(Color.BLUE);
+                material.setColorInfluence(0.1f);
+                material.enableLighting(true);
+                material.setDiffuseMethod(new DiffuseMethod.Lambert());
+                object.setMaterial(material);
+                object.setPosition(devices.get(uuid).getPosition());
+                object.setOrientation(devices.get(uuid).getOrientation());
+                mDevices.put(uuid, object);
+                getCurrentScene().addChild(object);
+            } else {
+                mDevices.get(uuid).setPosition(devices.get(uuid).getPosition());
+                mDevices.get(uuid).setOrientation(devices.get(uuid).getOrientation());
+            }
         }
-    }
-
-    public void addObject(MultiTangoDevice device) {
-        Object3D object = new Sphere(SPHERE_RADIUS, SPHERE_DIVISIONS, SPHERE_DIVISIONS);
-        Material material = new Material();
-        material.setColor(Color.BLUE);
-        material.setColorInfluence(0.1f);
-        material.enableLighting(true);
-        material.setDiffuseMethod(new DiffuseMethod.Lambert());
-        object.setMaterial(material);
-        object.setPosition(device.getPosition());
-        object.setOrientation(device.getOrientation());
-        object.moveForward(-0.5f);
-        mChildren.add(object);
-        getCurrentScene().addChild(object);
+        for (String uuid : mDevices.keySet()) {
+            if (!devices.containsKey(uuid)) {
+                getCurrentScene().removeChild(mDevices.get(uuid));
+                mDevices.remove(uuid);
+            }
+        }
     }
 
     @Override
