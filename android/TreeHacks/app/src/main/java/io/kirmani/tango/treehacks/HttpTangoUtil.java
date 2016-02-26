@@ -51,7 +51,7 @@ public class HttpTangoUtil {
     private static final String UPLOAD = "/upload";
 
     // Keys
-    private static final String POSITION = "position";
+    private static final String TRANSLATION = "translation";
     private static final String ROTATION = "rotation";
     private static final String HOST = "host";
     private static final String JOIN_WAITING = "join_waiting";
@@ -201,10 +201,15 @@ public class HttpTangoUtil {
             JSONObject device = new JSONObject();
             if (mPose == null)
                 return;
-            device.put(POSITION, new JSONArray(mPose.translation));
-            device.put(ROTATION, new JSONArray(mPose.rotation));
+
+            // Send right-handed pose to server.
+            device.put(TRANSLATION, new JSONArray(mPose.getTranslationAsFloats()));
+            device.put(ROTATION, new JSONArray(mPose.getRotationAsFloats()));
+
+            // Send localization and host status to server.
             device.put(LOCALIZED, mLocalized);
             device.put(HOST, mIsHost);
+
             mActivity.setStatus(String.format("Connected to session: %s (%s, %s)", mSessionId,
                         (mIsHost) ? "Host" : "Client",
                         (mLocalized) ? "Localized" : "Not Localized" ));
@@ -278,11 +283,17 @@ public class HttpTangoUtil {
                 try {
                     if (mAllDevices.getJSONObject(uuid).getBoolean(LOCALIZED)) {
                         JSONArray positionArray = mAllDevices.getJSONObject(uuid)
-                            .getJSONArray(POSITION);
+                            .getJSONArray(TRANSLATION);
                         JSONArray rotationArray = mAllDevices.getJSONObject(uuid)
                             .getJSONArray(ROTATION);
-                        Vector3 position = new Vector3(positionArray.getDouble(0),
-                            positionArray.getDouble(2), -positionArray.getDouble(1));
+
+                        // Convert from right-handed to left-handed, because Rajawali uses
+                        // left-handed coordinate system. Rajawali quaternions use a left-hand
+                        // rotation around the axis convention.
+                        Vector3 position = new Vector3(
+                                positionArray.getDouble(TangoPoseData.INDEX_TRANSLATION_X),
+                                positionArray.getDouble(TangoPoseData.INDEX_TRANSLATION_Y),
+                                positionArray.getDouble(TangoPoseData.INDEX_TRANSLATION_Z));
                         Quaternion orientation = new Quaternion(
                                 rotationArray.getDouble(TangoPoseData.INDEX_ROTATION_W),
                                 rotationArray.getDouble(TangoPoseData.INDEX_ROTATION_X),
@@ -337,7 +348,7 @@ public class HttpTangoUtil {
                     try {
                         if (response.getBoolean("download_ready")) {
                             try {
-                                // download the file
+                                // Download the ADF when new file is available.
                                 showToast("Downloading ADF...");
                                 mActivity.setStatus("Downloading ADF: " + mSessionId);
                                 String outputFile = "/sdcard/" + mSessionId;
