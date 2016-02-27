@@ -147,16 +147,7 @@ public class MainActivity extends Activity implements View.OnTouchListener,
             public void run() {
                 mMenu.findItem(R.id.action_create).setEnabled(enabled);
                 mMenu.findItem(R.id.action_join).setEnabled(enabled);
-            }
-        });
-    }
-
-    public void setDisconnectEnabled(final boolean enabled) {
-        Handler h = new Handler(getApplicationContext().getMainLooper());
-        h.post(new Runnable() {
-            @Override
-            public void run() {
-                mMenu.findItem(R.id.action_disconnect).setEnabled(enabled);
+                mMenu.findItem(R.id.action_disconnect).setEnabled(!enabled);
             }
         });
     }

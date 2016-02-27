@@ -64,11 +64,11 @@ public class HttpTangoUtil {
     private Tango mTango;
 
     private String mSessionId= null;
+    private TangoPoseData mPose = null;
     private boolean mIsHost = false;
     private boolean mLocalized = false;
     private boolean mJoinWaiting = false;
     private boolean mConnected = false;
-    private TangoPoseData mPose = null;
 
     private JSONObject mAllDevices;
 
@@ -93,8 +93,8 @@ public class HttpTangoUtil {
         mIsHost = false;
         mLocalized = false;
         mJoinWaiting = false;
+        mActivity.setJoinEnabled(true);
         mActivity.setStatus("Disconnected");
-        mActivity.setDisconnectEnabled(false);
     }
 
     public void attachTango(Tango tango) {
@@ -131,7 +131,6 @@ public class HttpTangoUtil {
                     Log.d(TAG, response.toString());
                     mConnected = true;
                     mSessionId = sessionId;
-                    mActivity.setDisconnectEnabled(true);
                     getUpdates();
                 }
             }, new Response.ErrorListener() {
@@ -212,7 +211,7 @@ public class HttpTangoUtil {
 
             mActivity.setStatus(String.format("Connected to session: %s (%s, %s)", mSessionId,
                         (mIsHost) ? "Host" : "Client",
-                        (mLocalized) ? "Localized" : "Not Localized" ));
+                        (mLocalized) ? "Localized" : "Not Localized"));
             JSONObject devices = new JSONObject();
             devices.put(getDeviceUuid(), device);
             JSONObject requestBody = new JSONObject();
@@ -292,8 +291,8 @@ public class HttpTangoUtil {
                         // rotation around the axis convention.
                         Vector3 position = new Vector3(
                                 positionArray.getDouble(TangoPoseData.INDEX_TRANSLATION_X),
-                                positionArray.getDouble(TangoPoseData.INDEX_TRANSLATION_Y),
-                                positionArray.getDouble(TangoPoseData.INDEX_TRANSLATION_Z));
+                                positionArray.getDouble(TangoPoseData.INDEX_TRANSLATION_Z),
+                                -positionArray.getDouble(TangoPoseData.INDEX_TRANSLATION_Y));
                         Quaternion orientation = new Quaternion(
                                 rotationArray.getDouble(TangoPoseData.INDEX_ROTATION_W),
                                 rotationArray.getDouble(TangoPoseData.INDEX_ROTATION_X),
@@ -329,6 +328,7 @@ public class HttpTangoUtil {
                 .addFileToUpload("/sdcard/" + uuid, "adf")
                 .addParameter("session", mSessionId);
             req.startUpload();
+            mTango.importAreaDescriptionFile("/sdcard/" + uuid);
         } catch (FileNotFoundException e) {
             uploadADF();
         } catch (IllegalArgumentException e) {
@@ -364,10 +364,7 @@ public class HttpTangoUtil {
                                 // import ADF
                                 showToast("Importing ADF...");
                                 mActivity.setStatus("Importing ADF: " + mSessionId);
-                                mActivity.disconnect();
-                                mActivity.setLearning(false);
-                                mActivity.connect();
-                                mTango.experimentalLoadAreaDescriptionFromFile(outputFile);
+                                mTango.importAreaDescriptionFile(outputFile);
                             } catch (IOException e) {
                                 Log.e(TAG, e.getMessage());
                                 showToast(e.getMessage());

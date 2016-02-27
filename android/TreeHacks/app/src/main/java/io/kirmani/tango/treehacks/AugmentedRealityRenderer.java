@@ -115,7 +115,7 @@ public class AugmentedRealityRenderer extends TangoRajawaliRenderer {
             if (!mDevices.containsKey(uuid)) {
                 Object3D object = new Cube(SPHERE_RADIUS);
                 Material material = new Material();
-                material.setColor(Color.BLUE);
+                material.setColor(Color.RED);
                 material.setColorInfluence(0.1f);
                 material.enableLighting(true);
                 material.setDiffuseMethod(new DiffuseMethod.Lambert());
